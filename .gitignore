@@ -1,0 +1,16 @@
+# Rust build artifacts
+/target/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local env files
+.env
+.env.*
+
+# Logs
+*.log

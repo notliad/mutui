@@ -1,0 +1,18 @@
+[package]
+name = "mutui-tui"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "mutui"
+path = "src/main.rs"
+
+[dependencies]
+mutui-common = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+ratatui = "0.29"
+crossterm = "0.28"
+unicode-width = "0.2"

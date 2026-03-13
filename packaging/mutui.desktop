@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=mutui
+Comment=Lightweight YouTube Music terminal player
+Exec=mutui
+Terminal=true
+Categories=AudioVideo;Audio;Player;
+Keywords=music;youtube;terminal;tui;
+Icon=multimedia-player
+StartupNotify=true

@@ -1,0 +1,17 @@
+[package]
+name = "mutui-daemon"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "mutuid"
+path = "src/main.rs"
+
+[dependencies]
+mutui-common = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+log = "0.4"
+env_logger = "0.11"
