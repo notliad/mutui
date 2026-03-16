@@ -154,8 +154,8 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["s", "Save queue as playlist"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["Tab", "Switch between tabs"]),
-        Row::new(vec!["q", "Quit app"]),
-        Row::new(vec!["Q", "Shutdown daemon"]),
+        Row::new(vec!["q", "Close app"]),
+        Row::new(vec!["Q", "Shutdown"]),
     ];
 
     let table = Table::new(rows, [Constraint::Length(10), Constraint::Fill(1)])

@@ -7,5 +7,5 @@ Exec=mutui
 Terminal=true
 Categories=AudioVideo;Audio;Player;
 Keywords=music;youtube;terminal;tui;
-Icon=multimedia-player
+Icon=mutui
 StartupNotify=true

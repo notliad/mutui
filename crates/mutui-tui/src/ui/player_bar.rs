@@ -13,7 +13,7 @@ fn render_controls(frame: &mut Frame, _app: &App, area: Rect) {
         Span::styled("?", Style::default().fg(Color::DarkGray)),
         Span::styled(" help  ", Style::default().fg(Color::DarkGray)),
         Span::styled("q/Q", Style::default().fg(Color::DarkGray)),
-        Span::styled(" quit/shutdown", Style::default().fg(Color::DarkGray)),
+        Span::styled(" close/shutdown", Style::default().fg(Color::DarkGray)),
     ]);
 
     frame.render_widget(

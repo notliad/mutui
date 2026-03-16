@@ -186,6 +186,7 @@ async fn handle_key(
         // Quit
         KeyCode::Char('q') => app.should_quit = true,
         KeyCode::Char('Q') => {
+            crate::client::stop_tray();
             let _ = daemon.send(&Request::Shutdown).await;
             app.should_quit = true;
         }

@@ -69,9 +69,9 @@ Behavior:
 - `q`: close TUI and keep music playing.
 - `Q`: shutdown daemon and stop playback.
 
-## App Drawer (Linux)
+## Full Installation (Linux)
 
-To make `mutui` appear in the app drawer, install a desktop entry:
+To install the complete app setup (dependencies, binaries, and launcher shortcut):
 
 ```bash
 chmod +x scripts/install-desktop-entry.sh
@@ -80,11 +80,30 @@ chmod +x scripts/install-desktop-entry.sh
 
 What this does:
 
-- Builds `mutui` in release mode.
-- Copies binary to `~/.local/bin/mutui`.
-- Installs `packaging/mutui.desktop` to `~/.local/share/applications/mutui.desktop`.
+- Installs system dependencies when needed (`mpv`, `yt-dlp`) on distros with `pacman`, `apt`, or `dnf`.
+- Builds the workspace in release mode.
+- Copies binaries to `~/.local/bin`:
+    - `mutui`
+    - `mutuid`
+    - `mutui-tray`
+- Creates launcher `~/.local/bin/mutui-launch`.
+- Installs desktop shortcut at `~/.local/share/applications/mutui.desktop` with absolute `Exec`.
 
 If your menu does not refresh immediately, log out/login once.
+
+## System Tray
+
+When launched from the desktop shortcut, `mutui-tray` starts automatically and shows mutui in the tray.
+
+Right-click menu (basic controls):
+
+- Open `mutui`
+- Play/Pause
+- Next
+- Previous
+- Stop
+- Shutdown daemon
+- Close tray
 
 ## Keybindings (Summary)
 
