@@ -2,6 +2,8 @@
 
 `mutui` is an open source YouTube music player for the terminal.
 
+![mutui](https://github.com/user-attachments/assets/8193afc3-eca8-4e4e-8760-848498b8dec8)
+
 The project exists for one simple reason: a lightweight player that does not consume close to 1GB of RAM, while staying fast and straightforward.
 
 ## Why This Project
