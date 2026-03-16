@@ -49,7 +49,29 @@ impl ksni::Tray for MutuiTray {
     }
 
     fn icon_name(&self) -> String {
-        "multimedia-player".into()
+        "audio-x-generic".into()
+    }
+
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        // 22x22 ARGB32 (network byte order) cyan circle — guarantees the
+        // icon is visible even when the name cannot be resolved by the
+        // active icon theme (common on Hyprland + waybar).
+        let size: i32 = 22;
+        let mut data = Vec::with_capacity((size * size * 4) as usize);
+        let c = size as f64 / 2.0;
+        let r = c - 1.5;
+        for y in 0..size {
+            for x in 0..size {
+                let dx = x as f64 - c + 0.5;
+                let dy = y as f64 - c + 0.5;
+                if dx * dx + dy * dy <= r * r {
+                    data.extend_from_slice(&[255, 0, 190, 220]); // ARGB cyan
+                } else {
+                    data.extend_from_slice(&[0, 0, 0, 0]);
+                }
+            }
+        }
+        vec![ksni::Icon { width: size, height: size, data }]
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {
@@ -241,6 +263,32 @@ impl Drop for TrayLock {
 
 fn acquire_lock() -> Option<TrayLock> {
     let lock_path = mutui_common::socket_path().with_file_name("mutui-tray.lock");
+
+    // Try creating the lock file exclusively.
+    match std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&lock_path)
+    {
+        Ok(mut file) => {
+            let _ = writeln!(file, "{}", std::process::id());
+            return Some(TrayLock { path: lock_path });
+        }
+        Err(_) => {}
+    }
+
+    // Lock file exists — check if the owning process is still alive.
+    if let Ok(contents) = std::fs::read_to_string(&lock_path) {
+        if let Ok(pid) = contents.trim().parse::<u32>() {
+            let alive = std::path::Path::new(&format!("/proc/{pid}")).exists();
+            if alive {
+                return None; // another tray is genuinely running
+            }
+        }
+    }
+
+    // Stale lock — remove and retry.
+    let _ = std::fs::remove_file(&lock_path);
     match std::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
