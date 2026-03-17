@@ -1,14 +1,22 @@
-# mutui
+```
+                  _         _ 
+                 | |       (_)
+  _ __ ___  _   _| |_ _   _ _ 
+ | '_ ` _ \| | | | __| | | | |
+ | | | | | | |_| | |_| |_| | |
+ |_| |_| |_|\__,_|\__|\__,_|_|
+                              
+```
 
 `mutui` is a lightweight terminal music player for Linux.
+
+https://github.com/user-attachments/assets/5ba80a81-db08-4168-9a7a-47bb53afb577
 
 It supports:
 - YouTube search and playback (`yt-dlp` + `mpv`)
 - Local music library folders
 - Queue and playlists
 - Background daemon playback
-
-![mutui](https://github.com/user-attachments/assets/8193afc3-eca8-4e4e-8760-848498b8dec8)
 
 ## Requirements
 
