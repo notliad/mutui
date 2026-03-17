@@ -1,4 +1,4 @@
-# mutui
+<img width="232" height="128" alt="mutui" src="https://github.com/user-attachments/assets/65c78200-fd1b-4bf6-87a7-b8be53724f07" />
 
 `mutui` is a lightweight terminal music player for Linux.
 
