@@ -57,6 +57,13 @@ async fn run(
     if let Ok(Response::Playlists(names)) = daemon.send(&Request::ListPlaylists).await {
         app.playlist_names = names;
     }
+    // Initial library folders + tracks
+    if let Ok(Response::LibraryFolders(folders)) = daemon.send(&Request::ListLibraryFolders).await {
+        app.library_folders = folders;
+    }
+    if let Ok(Response::LibraryTracks(tracks)) = daemon.send(&Request::ScanLibrary).await {
+        app.library_tracks = tracks;
+    }
 
 
     let mut tick_counter: u8 = 0;
@@ -179,6 +186,10 @@ async fn handle_key(
             handle_playlist_name_input(app, daemon, key).await?;
             return Ok(());
         }
+        InputMode::LibraryFolderPath => {
+            handle_library_folder_input(app, daemon, key).await?;
+            return Ok(());
+        }
         InputMode::Normal => {}
     }
 
@@ -198,17 +209,27 @@ async fn handle_key(
             if app.view == View::Playlists {
                 refresh_selected_playlist(app, daemon).await;
             }
+            if app.view == View::Library {
+                refresh_library(app, daemon).await;
+            }
         }
         KeyCode::BackTab => {
             app.view = app.view.prev();
             if app.view == View::Playlists {
                 refresh_selected_playlist(app, daemon).await;
             }
+            if app.view == View::Library {
+                refresh_library(app, daemon).await;
+            }
         }
         KeyCode::Char('1') => app.view = View::Search,
-        KeyCode::Char('2') | KeyCode::Char('3') => {
+        KeyCode::Char('2') => {
             app.view = View::Playlists;
             refresh_selected_playlist(app, daemon).await;
+        }
+        KeyCode::Char('3') => {
+            app.view = View::Library;
+            refresh_library(app, daemon).await;
         }
 
         // Global playback controls
@@ -296,11 +317,15 @@ async fn handle_key(
             let pos = app.status.position + 5.0;
             let _ = daemon.send(&Request::Seek(pos)).await;
         }
+        KeyCode::Char('o') => {
+            open_external_current(app);
+        }
 
         // View-specific keys
         _ => match app.view {
             View::Search => handle_search_normal(app, daemon, key).await?,
             View::Playlists => handle_playlists(app, daemon, key).await?,
+            View::Library => handle_library(app, daemon, key).await?,
         },
     }
 
@@ -643,4 +668,174 @@ async fn handle_playlist_name_input(
         _ => {}
     }
     Ok(())
+}
+
+// --- Library View ---
+
+async fn refresh_library(app: &mut App, daemon: &mut DaemonClient) {
+    if let Ok(Response::LibraryFolders(folders)) = daemon.send(&Request::ListLibraryFolders).await {
+        app.library_folders = folders;
+    }
+    if let Ok(Response::LibraryTracks(tracks)) = daemon.send(&Request::ScanLibrary).await {
+        app.library_tracks = tracks;
+        app.library_selected = app
+            .library_selected
+            .min(app.library_tracks.len().saturating_sub(1));
+    }
+}
+
+async fn handle_library(
+    app: &mut App,
+    daemon: &mut DaemonClient,
+    key: event::KeyEvent,
+) -> Result<()> {
+    match key.code {
+        KeyCode::Down | KeyCode::Char('j') => {
+            if !app.library_tracks.is_empty() {
+                app.library_selected =
+                    (app.library_selected + 1).min(app.library_tracks.len() - 1);
+            }
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.library_selected = app.library_selected.saturating_sub(1);
+        }
+        KeyCode::Enter => {
+            if let Some(track) = app.library_tracks.get(app.library_selected).cloned() {
+                if app.status.queue.is_empty() {
+                    let _ = daemon.send(&Request::AddToQueue(track)).await;
+                } else {
+                    let target = (app.status.queue_index + 1).min(app.status.queue.len());
+                    let _ = daemon.send(&Request::InsertNext(track)).await;
+                    let _ = daemon.send(&Request::PlayIndex(target)).await;
+                }
+                app.notify("Playing now!");
+            }
+        }
+        KeyCode::Char('a') => {
+            if let Some(track) = app.library_tracks.get(app.library_selected).cloned() {
+                let name = track.title.clone();
+                let _ = daemon.send(&Request::AddToQueue(track)).await;
+                app.notify(format!("Added to queue: {name}"));
+            }
+        }
+        KeyCode::Char('f') => {
+            app.input_mode = InputMode::LibraryFolderPath;
+            app.library_folder_input.clear();
+            app.library_folder_cursor = 0;
+        }
+        KeyCode::Char('d') => {
+            // Remove the last library folder (simple approach)
+            if let Some(folder) = app.library_folders.last().cloned() {
+                if let Ok(Response::LibraryFolders(folders)) =
+                    daemon.send(&Request::RemoveLibraryFolder(folder.clone())).await
+                {
+                    app.library_folders = folders;
+                    app.notify(format!("Removed folder: {folder}"));
+                    refresh_library(app, daemon).await;
+                }
+            }
+        }
+        KeyCode::Char('r') => {
+            refresh_library(app, daemon).await;
+            app.notify("Library rescanned");
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn handle_library_folder_input(
+    app: &mut App,
+    daemon: &mut DaemonClient,
+    key: event::KeyEvent,
+) -> Result<()> {
+    match key.code {
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+        }
+        KeyCode::Enter => {
+            if !app.library_folder_input.is_empty() {
+                let folder = app.library_folder_input.clone();
+                match daemon.send(&Request::AddLibraryFolder(folder.clone())).await {
+                    Ok(Response::LibraryFolders(folders)) => {
+                        app.library_folders = folders;
+                        app.notify(format!("Added folder: {folder}"));
+                        app.input_mode = InputMode::Normal;
+                        // Rescan
+                        if let Ok(Response::LibraryTracks(tracks)) =
+                            daemon.send(&Request::ScanLibrary).await
+                        {
+                            app.library_tracks = tracks;
+                            app.library_selected = 0;
+                        }
+                    }
+                    Ok(Response::Error(e)) => {
+                        app.notify(format!("Error: {e}"));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        KeyCode::Char(c) => {
+            app.library_folder_input
+                .insert(app.library_folder_cursor, c);
+            app.library_folder_cursor += 1;
+        }
+        KeyCode::Backspace => {
+            if app.library_folder_cursor > 0 {
+                app.library_folder_cursor -= 1;
+                app.library_folder_input
+                    .remove(app.library_folder_cursor);
+            }
+        }
+        KeyCode::Left => {
+            app.library_folder_cursor = app.library_folder_cursor.saturating_sub(1);
+        }
+        KeyCode::Right => {
+            app.library_folder_cursor =
+                (app.library_folder_cursor + 1).min(app.library_folder_input.len());
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+// --- Open External ---
+
+fn open_external_current(app: &mut App) {
+    let track = if let Some(t) = &app.status.current_track {
+        t.clone()
+    } else {
+        app.notify("No track playing");
+        return;
+    };
+
+    open_track_external(app, &track);
+}
+
+fn open_track_external(app: &mut App, track: &mutui_common::Track) {
+    let url = &track.url;
+
+    // Determine what to open
+    let target = if url.contains("youtube.com") || url.contains("youtu.be") {
+        url.clone()
+    } else if std::path::Path::new(url).exists() {
+        url.clone()
+    } else if url.starts_with("http") {
+        url.clone()
+    } else {
+        app.notify("Cannot open: unknown source");
+        return;
+    };
+
+    match std::process::Command::new("xdg-open")
+        .arg(&target)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(_) => app.notify("Opened externally"),
+        Err(e) => app.notify(format!("Failed to open: {e}")),
+    }
 }

@@ -3,6 +3,7 @@ mod now_playing;
 mod queue_panel;
 mod playlists;
 mod search;
+mod library;
 
 use crate::app::App;
 use ratatui::prelude::*;
@@ -35,6 +36,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         match app.view {
             crate::app::View::Search => search::render(frame, app, main[0]),
             crate::app::View::Playlists => playlists::render(frame, app, main[0]),
+            crate::app::View::Library => library::render(frame, app, main[0]),
         }
 
         now_playing::render(frame, app, main[1], false);
@@ -53,6 +55,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         match app.view {
             crate::app::View::Search => search::render(frame, app, main[0]),
             crate::app::View::Playlists => playlists::render(frame, app, main[0]),
+            crate::app::View::Library => library::render(frame, app, main[0]),
         }
 
         now_playing::render(frame, app, right[0], false);
@@ -61,6 +64,10 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.input_mode == crate::app::InputMode::PlaylistName {
         playlists::render_name_input_overlay(frame, app, frame.area());
+    }
+
+    if app.input_mode == crate::app::InputMode::LibraryFolderPath {
+        library::render_folder_input_overlay(frame, app, frame.area());
     }
 
     if app.playlist_delete_confirm_name.is_some() {
@@ -75,6 +82,11 @@ pub fn render(frame: &mut Frame, app: &App) {
 }
 
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
+    let selected_idx = crate::app::View::all()
+        .iter()
+        .position(|v| *v == app.view)
+        .unwrap_or(0);
+
     let titles: Vec<Line> = crate::app::View::all()
         .iter()
         .map(|v| {
@@ -90,6 +102,7 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let tabs = Tabs::new(titles)
+        .select(selected_idx)
         .divider(Span::styled("│", Style::default().fg(Color::DarkGray)))
         .highlight_style(Style::default().fg(Color::Cyan));
 
@@ -117,7 +130,7 @@ fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
 }
 
 fn render_shortcuts_popup(frame: &mut Frame) {
-    let area = centered_rect(72, 19, frame.area());
+    let area = centered_rect(72, 24, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
@@ -138,6 +151,7 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["n / p", "Next / previous track"]),
         Row::new(vec!["<- / ->", "Seek backward / forward"]),
         Row::new(vec!["+ / -", "Volume up / down"]),
+        Row::new(vec!["o", "Open current track externally"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["J / K", "Select queue item"]),
         Row::new(vec!["T", "Play selected queue item"]),
@@ -152,6 +166,9 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["l", "Load selected playlist into queue"]),
         Row::new(vec!["d", "Delete selected playlist or playlist track"]),
         Row::new(vec!["s", "Save queue as playlist"]),
+        Row::new(vec!["", ""]),
+        Row::new(vec!["f", "Add library folder (Library tab)"]),
+        Row::new(vec!["r", "Rescan library (Library tab)"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["Tab", "Switch between tabs"]),
         Row::new(vec!["q", "Close app"]),

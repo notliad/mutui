@@ -82,6 +82,12 @@ pub enum Request {
     DeletePlaylist(String),
     LoadPlaylist(String),
 
+    // Library
+    AddLibraryFolder(String),
+    RemoveLibraryFolder(String),
+    ListLibraryFolders,
+    ScanLibrary,
+
     // Status
     GetStatus,
 
@@ -96,6 +102,8 @@ pub enum Response {
     SearchResults(Vec<Track>),
     Playlists(Vec<String>),
     Playlist(Playlist),
+    LibraryFolders(Vec<String>),
+    LibraryTracks(Vec<Track>),
     Error(String),
 }
 
@@ -127,6 +135,10 @@ pub fn playlists_dir() -> PathBuf {
     let path = data_dir().join("playlists");
     std::fs::create_dir_all(&path).ok();
     path
+}
+
+pub fn library_config_path() -> PathBuf {
+    data_dir().join("library.json")
 }
 
 // --- IPC Framing helpers ---

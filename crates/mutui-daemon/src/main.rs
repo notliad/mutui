@@ -1,4 +1,5 @@
 mod mpv;
+mod library;
 mod playlist;
 mod queue;
 mod search;

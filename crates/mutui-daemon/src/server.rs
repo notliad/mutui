@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::mpv::MpvHandle;
 use crate::playlist;
+use crate::library;
 use crate::queue::Queue;
 use crate::search;
 
@@ -205,6 +206,21 @@ impl Daemon {
                 }
                 Err(e) => Response::Error(e.to_string()),
             },
+            Request::AddLibraryFolder(folder) => match library::add_folder(&folder) {
+                Ok(folders) => Response::LibraryFolders(folders),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::RemoveLibraryFolder(folder) => match library::remove_folder(&folder) {
+                Ok(folders) => Response::LibraryFolders(folders),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::ListLibraryFolders => {
+                Response::LibraryFolders(library::list_folders())
+            }
+            Request::ScanLibrary => {
+                let tracks = library::scan();
+                Response::LibraryTracks(tracks)
+            }
             Request::GetStatus => {
                 let status = self.get_status().await;
                 Response::Status(Box::new(status))

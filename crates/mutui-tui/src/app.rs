@@ -4,31 +4,35 @@ use mutui_common::{DaemonStatus, Track};
 pub enum View {
     Search,
     Playlists,
+    Library,
 }
 
 impl View {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Search => "Search",
-            Self::Playlists => "Playlists",
+            Self::Search => "1 Search",
+            Self::Playlists => "2 Playlists",
+            Self::Library => "3 Library",
         }
     }
 
     pub fn all() -> &'static [View] {
-        &[View::Search, View::Playlists]
+        &[View::Search, View::Playlists, View::Library]
     }
 
     pub fn next(&self) -> View {
         match self {
             Self::Search => Self::Playlists,
-            Self::Playlists => Self::Search,
+            Self::Playlists => Self::Library,
+            Self::Library => Self::Search,
         }
     }
 
     pub fn prev(&self) -> View {
         match self {
-            Self::Search => Self::Playlists,
+            Self::Search => Self::Library,
             Self::Playlists => Self::Search,
+            Self::Library => Self::Playlists,
         }
     }
 }
@@ -38,6 +42,7 @@ pub enum InputMode {
     Normal,
     Search,
     PlaylistName,
+    LibraryFolderPath,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +92,13 @@ pub struct App {
 
     // Confirm delete playlist popup
     pub playlist_delete_confirm_name: Option<String>,
+
+    // Library
+    pub library_folders: Vec<String>,
+    pub library_tracks: Vec<Track>,
+    pub library_selected: usize,
+    pub library_folder_input: String,
+    pub library_folder_cursor: usize,
 }
 
 impl App {
@@ -117,6 +129,11 @@ impl App {
             queue_selected: 0,
             show_shortcuts_popup: false,
             playlist_delete_confirm_name: None,
+            library_folders: Vec::new(),
+            library_tracks: Vec::new(),
+            library_selected: 0,
+            library_folder_input: String::new(),
+            library_folder_cursor: 0,
         }
     }
 
