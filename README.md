@@ -8,7 +8,7 @@ It supports:
 - Queue and playlists
 - Background daemon playback
 
-![mutui](https://github.com/user-attachments/assets/8193afc3-eca8-4e4e-8760-848498b8dec8)
+<img width="1352" height="724" alt="image" src="https://github.com/user-attachments/assets/335c1ac4-18b1-47ec-85e2-d837b6fea078" />
 
 ## Requirements
 
