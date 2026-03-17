@@ -10,6 +10,8 @@
 
 `mutui` is a lightweight terminal music player for Linux.
 
+https://github.com/user-attachments/assets/5ba80a81-db08-4168-9a7a-47bb53afb577
+
 It supports:
 - YouTube search and playback (`yt-dlp` + `mpv`)
 - Local music library folders
