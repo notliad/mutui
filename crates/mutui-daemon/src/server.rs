@@ -15,19 +15,17 @@ use crate::search;
 pub struct Daemon {
     pub mpv: MpvHandle,
     pub queue: Queue,
-    pub volume: i64,
 }
 
 impl Daemon {
     pub async fn new() -> Result<Self> {
         let mpv = MpvHandle::start().await?;
-        let volume = 80;
+        let volume = 30;
         let _ = mpv.set_volume(volume).await;
 
         Ok(Self {
             mpv,
             queue: Queue::new(),
-            volume,
         })
     }
 
@@ -115,14 +113,6 @@ impl Daemon {
             }
             Request::Seek(pos) => {
                 if let Err(e) = self.mpv.seek(pos).await {
-                    return Response::Error(e.to_string());
-                }
-                Response::Ok
-            }
-            Request::SetVolume(vol) => {
-                let vol = vol.clamp(0, 150);
-                self.volume = vol;
-                if let Err(e) = self.mpv.set_volume(vol).await {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok
@@ -295,11 +285,63 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
             }
         };
 
-        let is_shutdown = matches!(req, Request::Shutdown);
+        let is_shutdown = matches!(&req, Request::Shutdown);
 
-        let resp = {
-            let mut d = daemon.lock().await;
-            d.handle_request(req).await
+        let resp = match req {
+            // Handle slow/search and disk-heavy requests without holding the
+            // global daemon lock, so status/playback requests stay responsive.
+            Request::Search(query) => match search::search(&query, 15).await {
+                Ok(tracks) => Response::SearchResults(tracks),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::ListPlaylists => match playlist::list() {
+                Ok(names) => Response::Playlists(names),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::GetPlaylist(name) => match playlist::load(&name) {
+                Ok(pl) => Response::Playlist(pl),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::SavePlaylist(pl) => match playlist::save(&pl) {
+                Ok(()) => Response::Ok,
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::DeletePlaylist(name) => match playlist::delete(&name) {
+                Ok(()) => Response::Ok,
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::AddLibraryFolder(folder) => match library::add_folder(&folder) {
+                Ok(folders) => Response::LibraryFolders(folders),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::RemoveLibraryFolder(folder) => match library::remove_folder(&folder) {
+                Ok(folders) => Response::LibraryFolders(folders),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::ListLibraryFolders => Response::LibraryFolders(library::list_folders()),
+            Request::ScanLibrary => {
+                let tracks = library::scan();
+                Response::LibraryTracks(tracks)
+            }
+            Request::LoadPlaylist(name) => match playlist::load(&name) {
+                Ok(pl) => {
+                    let mut d = daemon.lock().await;
+                    d.queue.clear();
+                    let _ = d.mpv.stop().await;
+                    for track in pl.tracks {
+                        d.queue.add(track);
+                    }
+                    if !d.queue.is_empty() {
+                        let _ = d.play_current().await;
+                    }
+                    Response::Ok
+                }
+                Err(e) => Response::Error(e.to_string()),
+            },
+            other => {
+                let mut d = daemon.lock().await;
+                d.handle_request(other).await
+            }
         };
 
         if let Ok(frame) = encode_message(&resp) {

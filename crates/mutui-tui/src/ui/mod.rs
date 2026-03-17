@@ -154,7 +154,6 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["Space", "Play / pause"]),
         Row::new(vec!["n / p", "Next / previous track"]),
         Row::new(vec!["<- / ->", "Seek backward / forward"]),
-        Row::new(vec!["+ / -", "Volume up / down"]),
         Row::new(vec!["o", "Open current track externally"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["J / K", "Select queue item"]),

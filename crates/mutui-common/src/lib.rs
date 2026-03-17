@@ -43,7 +43,7 @@ impl Default for DaemonStatus {
             current_track: None,
             position: 0.0,
             duration: 0.0,
-            volume: 80,
+            volume: 30,
             queue: Vec::new(),
             queue_index: 0,
         }
@@ -62,7 +62,6 @@ pub enum Request {
     Next,
     Previous,
     Seek(f64),
-    SetVolume(i64),
 
     // Queue
     AddToQueue(Track),

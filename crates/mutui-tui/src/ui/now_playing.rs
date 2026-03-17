@@ -136,11 +136,9 @@ fn render_meta_and_progress(frame: &mut Frame, app: &App, area: Rect) {
         format_time(app.status.position),
         format_time(app.status.duration)
     );
-    let volume = format!("Vol {}%", app.status.volume);
     let row = Line::from(vec![
         Span::styled(time, Style::default().fg(Color::DarkGray)),
         Span::styled("  ", Style::default()),
-        Span::styled(volume, Style::default().fg(Color::Gray)),
     ]);
     frame.render_widget(Paragraph::new(row), chunks[2]);
 

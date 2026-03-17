@@ -57,12 +57,9 @@ async fn run(
     if let Ok(Response::Playlists(names)) = daemon.send(&Request::ListPlaylists).await {
         app.playlist_names = names;
     }
-    // Initial library folders + tracks
+    // Initial library folders
     if let Ok(Response::LibraryFolders(folders)) = daemon.send(&Request::ListLibraryFolders).await {
         app.library_folders = folders;
-    }
-    if let Ok(Response::LibraryTracks(tracks)) = daemon.send(&Request::ScanLibrary).await {
-        app.library_tracks = tracks;
     }
 
 
@@ -322,14 +319,6 @@ async fn handle_key(
                 let _ = daemon.send(&Request::PlayIndex(idx)).await;
                 app.notify("Playing selected queue track");
             }
-        }
-        KeyCode::Char('+') | KeyCode::Char('=') => {
-            let vol = (app.status.volume + 5).min(150);
-            let _ = daemon.send(&Request::SetVolume(vol)).await;
-        }
-        KeyCode::Char('-') => {
-            let vol = (app.status.volume - 5).max(0);
-            let _ = daemon.send(&Request::SetVolume(vol)).await;
         }
         KeyCode::Left => {
             let pos = (app.status.position - 5.0).max(0.0);
@@ -697,12 +686,6 @@ async fn handle_playlist_name_input(
 async fn refresh_library(app: &mut App, daemon: &mut DaemonClient) {
     if let Ok(Response::LibraryFolders(folders)) = daemon.send(&Request::ListLibraryFolders).await {
         app.library_folders = folders;
-    }
-    if let Ok(Response::LibraryTracks(tracks)) = daemon.send(&Request::ScanLibrary).await {
-        app.library_tracks = tracks;
-        app.library_selected = app
-            .library_selected
-            .min(app.library_tracks.len().saturating_sub(1));
     }
 }
 
