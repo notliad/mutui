@@ -92,6 +92,7 @@ pub struct App {
 
     // Confirm delete playlist popup
     pub playlist_delete_confirm_name: Option<String>,
+    pub library_delete_confirm_folder: Option<String>,
 
     // Library
     pub library_folders: Vec<String>,
@@ -129,6 +130,7 @@ impl App {
             queue_selected: 0,
             show_shortcuts_popup: false,
             playlist_delete_confirm_name: None,
+            library_delete_confirm_folder: None,
             library_folders: Vec::new(),
             library_tracks: Vec::new(),
             library_selected: 0,

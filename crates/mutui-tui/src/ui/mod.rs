@@ -74,6 +74,10 @@ pub fn render(frame: &mut Frame, app: &App) {
         render_delete_playlist_confirm_popup(frame, app);
     }
 
+    if app.library_delete_confirm_folder.is_some() {
+        render_delete_library_folder_confirm_popup(frame, app);
+    }
+
     player_bar::render(frame, app, chunks[2]);
 
     if app.show_shortcuts_popup {
@@ -168,6 +172,7 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["s", "Save queue as playlist"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["f", "Add library folder (Library tab)"]),
+        Row::new(vec!["R", "Remove folder (confirm) (Library tab)"]),
         Row::new(vec!["r", "Rescan library (Library tab)"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["Tab", "Switch between tabs"]),
@@ -208,6 +213,39 @@ fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App) {
 
     let text = Paragraph::new(vec![
         Line::from(format!("Delete playlist '{name}'?")),
+        Line::from("Enter/Y confirm  Esc/N cancel"),
+    ])
+    .style(Style::default().fg(Color::Gray))
+    .alignment(Alignment::Center)
+    .wrap(Wrap { trim: true });
+
+    frame.render_widget(text, rows[1]);
+}
+
+fn render_delete_library_folder_confirm_popup(frame: &mut Frame, app: &App) {
+    let Some(folder) = app.library_delete_confirm_folder.as_deref() else {
+        return;
+    };
+
+    let area = centered_rect(70, 6, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(" Confirm Folder Delete ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Fill(1), Constraint::Length(2), Constraint::Fill(1)])
+        .split(inner);
+
+    let text = Paragraph::new(vec![
+        Line::from(format!("Remove folder '{folder}' from library?")),
         Line::from("Enter/Y confirm  Esc/N cancel"),
     ])
     .style(Style::default().fg(Color::Gray))

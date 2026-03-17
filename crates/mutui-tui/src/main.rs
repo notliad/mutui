@@ -143,6 +143,28 @@ async fn handle_key(
     daemon: &mut DaemonClient,
     key: event::KeyEvent,
 ) -> Result<()> {
+    if app.library_delete_confirm_folder.is_some() {
+        match key.code {
+            KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if let Some(folder) = app.library_delete_confirm_folder.take() {
+                    if let Ok(Response::LibraryFolders(folders)) =
+                        daemon.send(&Request::RemoveLibraryFolder(folder.clone())).await
+                    {
+                        app.library_folders = folders;
+                        app.notify(format!("Removed folder: {folder}"));
+                        refresh_library(app, daemon).await;
+                    }
+                }
+            }
+            KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
+                app.library_delete_confirm_folder = None;
+                app.notify("Delete canceled");
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     if app.playlist_delete_confirm_name.is_some() {
         match key.code {
             KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => {
@@ -723,16 +745,10 @@ async fn handle_library(
             app.library_folder_input.clear();
             app.library_folder_cursor = 0;
         }
-        KeyCode::Char('d') => {
-            // Remove the last library folder (simple approach)
+        KeyCode::Char('R') => {
+            // Ask confirmation before removing the last added folder.
             if let Some(folder) = app.library_folders.last().cloned() {
-                if let Ok(Response::LibraryFolders(folders)) =
-                    daemon.send(&Request::RemoveLibraryFolder(folder.clone())).await
-                {
-                    app.library_folders = folders;
-                    app.notify(format!("Removed folder: {folder}"));
-                    refresh_library(app, daemon).await;
-                }
+                app.library_delete_confirm_folder = Some(folder);
             }
         }
         KeyCode::Char('r') => {

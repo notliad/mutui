@@ -50,7 +50,7 @@ fn render_folders(frame: &mut Frame, app: &App, area: Rect) {
 fn render_tracks(frame: &mut Frame, app: &App, area: Rect) {
     if app.library_tracks.is_empty() {
         let help = if app.library_folders.is_empty() {
-            "Add a music folder with 'f' to start browsing local files\nExample: 'f /home/user/Music'"
+            "Add a music folder with 'f' to start browsing local files\nExample: '/home/user/Music'"
         } else {
             "No audio files found — press 'r' to rescan"
         };
@@ -105,7 +105,7 @@ fn render_tracks(frame: &mut Frame, app: &App, area: Rect) {
                 .border_style(Style::default().fg(Color::DarkGray))
                 .title(" Tracks ")
                 .title_bottom(
-                    Line::from(" Enter=play  a=add to queue  f=add folder  d=remove folder  r=rescan  o=open ")
+                    Line::from(" Enter=play  a=add to queue  f=add folder  R=remove folder  r=rescan  o=open ")
                         .fg(Color::DarkGray),
                 ),
         )
