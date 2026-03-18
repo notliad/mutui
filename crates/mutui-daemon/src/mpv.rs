@@ -228,7 +228,7 @@ impl MpvHandle {
             .ok()
             .and_then(|v| v.as_f64())
             .map(|v| v as i64)
-            .unwrap_or(30)
+            .unwrap_or(80)
     }
 
     pub async fn is_paused(&self) -> bool {

@@ -15,17 +15,19 @@ use crate::search;
 pub struct Daemon {
     pub mpv: MpvHandle,
     pub queue: Queue,
+    pub volume: i64,
 }
 
 impl Daemon {
     pub async fn new() -> Result<Self> {
         let mpv = MpvHandle::start().await?;
-        let volume = 30;
+        let volume = 80;
         let _ = mpv.set_volume(volume).await;
 
         Ok(Self {
             mpv,
             queue: Queue::new(),
+            volume,
         })
     }
 
@@ -113,6 +115,14 @@ impl Daemon {
             }
             Request::Seek(pos) => {
                 if let Err(e) = self.mpv.seek(pos).await {
+                    return Response::Error(e.to_string());
+                }
+                Response::Ok
+            }
+            Request::SetVolume(vol) => {
+                let vol = vol.clamp(0, 150);
+                self.volume = vol;
+                if let Err(e) = self.mpv.set_volume(vol).await {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok

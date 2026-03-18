@@ -65,7 +65,7 @@ impl LibraryMode {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::AllTracks => "All Tracks",
+            Self::AllTracks => "Tracks",
             Self::ByArtist => "Artists",
             Self::ByAlbum => "Albums",
         }

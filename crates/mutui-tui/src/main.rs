@@ -345,6 +345,14 @@ async fn handle_key(
                 app.notify("Playing selected queue track");
             }
         }
+        KeyCode::Char('+') | KeyCode::Char('=') => {
+            let vol = (app.status.volume + 5).min(150);
+            let _ = daemon.send(&Request::SetVolume(vol)).await;
+        }
+        KeyCode::Char('-') => {
+            let vol = (app.status.volume - 5).max(0);
+            let _ = daemon.send(&Request::SetVolume(vol)).await;
+        }
         KeyCode::Left if app.view != View::Playlists => {
             let pos = (app.status.position - 5.0).max(0.0);
             let _ = daemon.send(&Request::Seek(pos)).await;
