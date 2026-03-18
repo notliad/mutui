@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mutui | Terminal Music Player</title>
     <meta
       name="description"
-      content="mutui: player de musica no terminal para Linux com baixo uso de RAM, busca no YouTube e biblioteca local."
+      content="mutui: a lightweight Linux terminal music player with YouTube search and local library support."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -275,7 +275,7 @@
       <header class="topbar reveal">
         <div class="brand">mutui</div>
         <a class="repo-link" href="https://github.com/notliad/mutui" target="_blank" rel="noreferrer">
-          Ver no GitHub
+          View on GitHub
         </a>
       </header>
 
@@ -283,11 +283,11 @@
         <span class="eyebrow">Linux Terminal Player</span>
         <h1>because you don't need to waste 1GB of RAM to listen to music</h1>
         <p class="tagline">
-          Player de musica leve para Linux com busca no YouTube, biblioteca local e reproducao em background. <strong>Roda no terminal e entrega o que importa.</strong>
+          A lightweight Linux music player with YouTube search, local library support, and background playback. <strong>Runs in your terminal and focuses on what matters.</strong>
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="#instalar">Instalar agora</a>
-          <a class="btn btn-secondary" href="https://github.com/notliad/mutui#readme" target="_blank" rel="noreferrer">Ler README</a>
+          <a class="btn btn-primary" href="#install">Install now</a>
+          <a class="btn btn-secondary" href="https://github.com/notliad/mutui#readme" target="_blank" rel="noreferrer">Read README</a>
         </div>
       </section>
 
@@ -295,17 +295,17 @@
         <article class="card" id="features">
           <h2>Features</h2>
           <ul>
-            <li>Busca e playback no YouTube com <code>yt-dlp</code> + <code>mpv</code></li>
-            <li>Biblioteca local por pastas (Artists e Albums)</li>
-            <li>Fila e playlists</li>
-            <li>Playback em background com daemon</li>
-            <li>TUI com atalhos rapidos para controle de musica</li>
+            <li>YouTube search and playback via <code>yt-dlp</code> + <code>mpv</code></li>
+            <li>Local music library folders (Artists and Albums support)</li>
+            <li>Queue and playlists</li>
+            <li>Background playback with daemon</li>
+            <li>Terminal UI with fast keyboard shortcuts</li>
           </ul>
         </article>
 
-        <article class="card" id="instalar">
-          <h2>Instalacao</h2>
-          <pre><code># 1) Dependencias
+        <article class="card" id="install">
+          <h2>Install</h2>
+          <pre><code># 1) Dependencies
 # Arch
 sudo pacman -S mpv yt-dlp
 
@@ -315,16 +315,38 @@ sudo apt install mpv yt-dlp
 # Fedora
 sudo dnf install mpv yt-dlp
 
-# 2) Build e run
+# 2) Build and run
 cargo build --release
 ./target/release/mutui</code></pre>
           <p class="note">
-            Dica: <code>mutui</code> inicia o <code>mutuid</code> automaticamente quando necessario.
+            Tip: <code>mutui</code> starts <code>mutuid</code> automatically when needed.
           </p>
         </article>
       </section>
 
-      <p class="footer reveal delay-3">MIT License. Feito para ouvir musica sem inflar RAM.</p>
+      <section class="grid reveal delay-3" style="margin-top: 1rem">
+        <article class="card">
+          <h2>YouTube Search</h2>
+          <img
+            src="https://github.com/user-attachments/assets/b99e6af2-15ea-4dd7-ab9d-274dd757bc35"
+            alt="mutui YouTube search screenshot"
+            style="width: 100%; border-radius: 12px; border: 1px solid #22394b; display: block"
+            loading="lazy"
+          />
+        </article>
+
+        <article class="card">
+          <h2>Local Music Library</h2>
+          <img
+            src="https://github.com/user-attachments/assets/b98ce197-0156-41dc-bbe9-0601d9e40132"
+            alt="mutui local music library screenshot"
+            style="width: 100%; border-radius: 12px; border: 1px solid #22394b; display: block"
+            loading="lazy"
+          />
+        </article>
+      </section>
+
+      <p class="footer reveal delay-3">MIT License. Built for music without bloated RAM usage.</p>
     </main>
   </body>
 </html>
