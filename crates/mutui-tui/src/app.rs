@@ -102,6 +102,7 @@ pub struct App {
     pub playlist_tracks: Vec<Track>,
     pub playlist_track_selected: usize,
     pub playlist_track_focus: bool,
+    pub playlist_expanded: bool,
 
     // Playlist name input (for saving)
     pub new_playlist_name: String,
@@ -119,7 +120,7 @@ pub struct App {
 
     // Confirm delete playlist popup
     pub playlist_delete_confirm_name: Option<String>,
-    pub library_delete_confirm_folder: Option<String>,
+    pub library_delete_confirm_selected: Option<usize>,
 
     // Library
     pub library_folders: Vec<String>,
@@ -157,6 +158,7 @@ impl App {
             playlist_tracks: Vec::new(),
             playlist_track_selected: 0,
             playlist_track_focus: false,
+            playlist_expanded: false,
             new_playlist_name: String::new(),
             new_playlist_cursor: 0,
             notification: None,
@@ -164,7 +166,7 @@ impl App {
             queue_selected: 0,
             show_shortcuts_popup: false,
             playlist_delete_confirm_name: None,
-            library_delete_confirm_folder: None,
+            library_delete_confirm_selected: None,
             library_folders: Vec::new(),
             library_tracks: Vec::new(),
             library_selected: 0,

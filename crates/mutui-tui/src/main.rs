@@ -140,21 +140,35 @@ async fn handle_key(
     daemon: &mut DaemonClient,
     key: event::KeyEvent,
 ) -> Result<()> {
-    if app.library_delete_confirm_folder.is_some() {
+    if app.library_delete_confirm_selected.is_some() {
         match key.code {
-            KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => {
-                if let Some(folder) = app.library_delete_confirm_folder.take() {
+            KeyCode::Down | KeyCode::Char('j') => {
+                if let Some(selected) = app.library_delete_confirm_selected.as_mut() {
+                    if !app.library_folders.is_empty() {
+                        *selected = (*selected + 1).min(app.library_folders.len() - 1);
+                    }
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if let Some(selected) = app.library_delete_confirm_selected.as_mut() {
+                    *selected = selected.saturating_sub(1);
+                }
+            }
+            KeyCode::Enter => {
+                let selected = app.library_delete_confirm_selected.unwrap_or(0);
+                if let Some(folder) = app.library_folders.get(selected).cloned() {
                     if let Ok(Response::LibraryFolders(folders)) =
                         daemon.send(&Request::RemoveLibraryFolder(folder.clone())).await
                     {
                         app.library_folders = folders;
+                        app.library_delete_confirm_selected = None;
                         app.notify(format!("Removed folder: {folder}"));
                         refresh_library(app, daemon).await;
                     }
                 }
             }
-            KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
-                app.library_delete_confirm_folder = None;
+            KeyCode::Esc => {
+                app.library_delete_confirm_selected = None;
                 app.notify("Delete canceled");
             }
             _ => {}
@@ -172,6 +186,7 @@ async fn handle_key(
                         .playlist_selected
                         .min(app.playlist_names.len().saturating_sub(1));
                     app.playlist_track_focus = false;
+                    app.playlist_expanded = false;
                     refresh_selected_playlist(app, daemon).await;
                     app.notify(format!("Playlist '{name}' deleted"));
                 }
@@ -230,6 +245,8 @@ async fn handle_key(
         KeyCode::Tab => {
             app.view = app.view.next();
             if app.view == View::Playlists {
+                app.playlist_expanded = false;
+                app.playlist_track_focus = false;
                 refresh_selected_playlist(app, daemon).await;
             }
             if app.view == View::Library {
@@ -239,6 +256,8 @@ async fn handle_key(
         KeyCode::BackTab => {
             app.view = app.view.prev();
             if app.view == View::Playlists {
+                app.playlist_expanded = false;
+                app.playlist_track_focus = false;
                 refresh_selected_playlist(app, daemon).await;
             }
             if app.view == View::Library {
@@ -248,6 +267,8 @@ async fn handle_key(
         KeyCode::Char('1') => app.view = View::Search,
         KeyCode::Char('2') => {
             app.view = View::Playlists;
+            app.playlist_expanded = false;
+            app.playlist_track_focus = false;
             refresh_selected_playlist(app, daemon).await;
         }
         KeyCode::Char('3') => {
@@ -324,11 +345,11 @@ async fn handle_key(
                 app.notify("Playing selected queue track");
             }
         }
-        KeyCode::Left => {
+        KeyCode::Left if app.view != View::Playlists => {
             let pos = (app.status.position - 5.0).max(0.0);
             let _ = daemon.send(&Request::Seek(pos)).await;
         }
-        KeyCode::Right => {
+        KeyCode::Right if app.view != View::Playlists => {
             let pos = app.status.position + 5.0;
             let _ = daemon.send(&Request::Seek(pos)).await;
         }
@@ -528,6 +549,13 @@ async fn handle_playlists(
 }
 
 async fn refresh_selected_playlist(app: &mut App, daemon: &mut DaemonClient) {
+    if !app.playlist_expanded {
+        app.playlist_tracks.clear();
+        app.playlist_track_selected = 0;
+        app.playlist_track_focus = false;
+        return;
+    }
+
     if let Some(name) = app.playlist_names.get(app.playlist_selected).cloned() {
         if let Ok(Response::Playlist(pl)) = daemon.send(&Request::GetPlaylist(name)).await {
             app.playlist_tracks = pl.tracks;
@@ -548,21 +576,23 @@ async fn handle_playlist_list(
 ) -> Result<()> {
     match key.code {
         KeyCode::Down | KeyCode::Char('j') => {
-            if app.playlist_track_focus {
+            if app.playlist_expanded && app.playlist_track_focus {
                 if app.playlist_track_selected + 1 < app.playlist_tracks.len() {
                     app.playlist_track_selected += 1;
                 } else if app.playlist_selected + 1 < app.playlist_names.len() {
                     app.playlist_track_focus = false;
                     app.playlist_selected += 1;
                     app.playlist_track_selected = 0;
+                    app.playlist_expanded = false;
                     refresh_selected_playlist(app, daemon).await;
                 }
-            } else if !app.playlist_tracks.is_empty() {
+            } else if app.playlist_expanded && !app.playlist_tracks.is_empty() {
                 app.playlist_track_focus = true;
                 app.playlist_track_selected = 0;
             } else if app.playlist_selected + 1 < app.playlist_names.len() {
                 app.playlist_selected += 1;
                 app.playlist_track_selected = 0;
+                app.playlist_expanded = false;
                 refresh_selected_playlist(app, daemon).await;
             }
         }
@@ -576,16 +606,32 @@ async fn handle_playlist_list(
             } else if app.playlist_selected > 0 {
                 app.playlist_selected -= 1;
                 app.playlist_track_selected = 0;
+                app.playlist_expanded = false;
                 refresh_selected_playlist(app, daemon).await;
             }
         }
-        KeyCode::Enter => {
-            app.playlist_track_focus = !app.playlist_track_focus;
-            if app.playlist_track_focus {
+        KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+            if !app.playlist_expanded {
+                app.playlist_expanded = true;
+                app.playlist_track_focus = false;
+                app.playlist_track_selected = 0;
+                refresh_selected_playlist(app, daemon).await;
+            } else {
+                app.playlist_expanded = false;
+                app.playlist_track_focus = false;
+                app.playlist_track_selected = 0;
                 refresh_selected_playlist(app, daemon).await;
             }
         }
-        KeyCode::Char('l') => {
+        KeyCode::Left | KeyCode::Char('h') => {
+            if app.playlist_expanded {
+                app.playlist_expanded = false;
+                app.playlist_track_focus = false;
+                app.playlist_track_selected = 0;
+                refresh_selected_playlist(app, daemon).await;
+            }
+        }
+        KeyCode::Char('a') => {
             // Load playlist into queue
             if let Some(name) = app.playlist_names.get(app.playlist_selected).cloned() {
                 let _ = daemon.send(&Request::LoadPlaylist(name.clone())).await;
@@ -593,7 +639,7 @@ async fn handle_playlist_list(
             }
         }
         KeyCode::Char('d') => {
-            if app.playlist_track_focus {
+            if app.playlist_expanded && app.playlist_track_focus {
                 // Delete track from selected playlist
                 if app.playlist_track_selected < app.playlist_tracks.len() {
                     app.playlist_tracks.remove(app.playlist_track_selected);
@@ -626,6 +672,7 @@ async fn handle_playlist_list(
                     .playlist_selected
                     .min(app.playlist_names.len().saturating_sub(1));
                 app.playlist_track_focus = false;
+                app.playlist_expanded = false;
                 refresh_selected_playlist(app, daemon).await;
             }
         }
@@ -725,8 +772,10 @@ async fn handle_library(
             return Ok(());
         }
         KeyCode::Char('R') => {
-            if let Some(folder) = app.library_folders.last().cloned() {
-                app.library_delete_confirm_folder = Some(folder);
+            if app.library_folders.is_empty() {
+                app.notify("No folders to remove");
+            } else {
+                app.library_delete_confirm_selected = Some(0);
             }
             return Ok(());
         }

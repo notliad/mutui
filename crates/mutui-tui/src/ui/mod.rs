@@ -74,8 +74,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         render_delete_playlist_confirm_popup(frame, app);
     }
 
-    if app.library_delete_confirm_folder.is_some() {
-        render_delete_library_folder_confirm_popup(frame, app);
+    if app.library_delete_confirm_selected.is_some() {
+        render_delete_library_folder_select_popup(frame, app);
     }
 
     player_bar::render(frame, app, chunks[2]);
@@ -165,13 +165,14 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["Enter", "Play selected search result"]),
         Row::new(vec!["a", "Add selected search result to queue"]),
         Row::new(vec!["", ""]),
-        Row::new(vec!["Enter", "Expand / collapse selected playlist"]),
-        Row::new(vec!["l", "Load selected playlist into queue"]),
+        Row::new(vec!["Enter / -> / l", "Open selected playlist"]),
+        Row::new(vec!["Enter / <- / h", "Close selected playlist"]),
+        Row::new(vec!["a", "Load selected playlist into queue"]),
         Row::new(vec!["d", "Delete selected playlist or playlist track"]),
         Row::new(vec!["s", "Save queue as playlist"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["f", "Add library folder (Library tab)"]),
-        Row::new(vec!["R", "Remove folder (confirm) (Library tab)"]),
+        Row::new(vec!["R", "Choose and remove folder (Library tab)"]),
         Row::new(vec!["r", "Rescan library (Library tab)"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["Tab", "Switch between tabs"]),
@@ -221,16 +222,16 @@ fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App) {
     frame.render_widget(text, rows[1]);
 }
 
-fn render_delete_library_folder_confirm_popup(frame: &mut Frame, app: &App) {
-    let Some(folder) = app.library_delete_confirm_folder.as_deref() else {
+fn render_delete_library_folder_select_popup(frame: &mut Frame, app: &App) {
+    let Some(selected) = app.library_delete_confirm_selected else {
         return;
     };
 
-    let area = centered_rect(70, 6, frame.area());
+    let area = centered_rect(70, 14, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
-        .title(" Confirm Folder Delete ")
+        .title(" Remove Library Folder ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
         .style(Style::default().bg(Color::Black));
@@ -240,16 +241,41 @@ fn render_delete_library_folder_confirm_popup(frame: &mut Frame, app: &App) {
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Fill(1), Constraint::Length(2), Constraint::Fill(1)])
+        .constraints([Constraint::Length(2), Constraint::Min(4), Constraint::Length(1)])
         .split(inner);
 
-    let text = Paragraph::new(vec![
-        Line::from(format!("Remove folder '{folder}' from library?")),
-        Line::from("Enter/Y confirm  Esc/N cancel"),
-    ])
-    .style(Style::default().fg(Color::Gray))
-    .alignment(Alignment::Center)
-    .wrap(Wrap { trim: true });
+    let title = Paragraph::new("Select a folder to remove")
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center);
+    frame.render_widget(title, rows[0]);
 
-    frame.render_widget(text, rows[1]);
+    let items: Vec<ListItem> = app
+        .library_folders
+        .iter()
+        .map(|folder| ListItem::new(Line::from(folder.as_str())))
+        .collect();
+
+    let list = List::new(items)
+        .highlight_symbol("▸ ")
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        );
+
+    let mut state = ListState::default().with_selected(Some(
+        selected.min(app.library_folders.len().saturating_sub(1)),
+    ));
+    frame.render_stateful_widget(list, rows[1], &mut state);
+
+    let hint = Paragraph::new("j/k or arrows: select  Enter: remove  Esc: cancel")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+    frame.render_widget(hint, rows[2]);
 }

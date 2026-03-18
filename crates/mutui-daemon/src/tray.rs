@@ -15,8 +15,7 @@ enum TrayAction {
     Next,
     Previous,
     Stop,
-    ShutdownDaemon,
-    QuitTray,
+    Quit,
 }
 
 struct MutuiTray {
@@ -121,15 +120,9 @@ impl ksni::Tray for MutuiTray {
             .into(),
             ksni::MenuItem::Separator,
             StandardItem {
-                label: "Shutdown daemon".into(),
-                activate: Box::new(|this: &mut Self| this.dispatch(TrayAction::ShutdownDaemon)),
-                ..Default::default()
-            }
-            .into(),
-            StandardItem {
-                label: "Close tray".into(),
+                label: "Quit".into(),
                 icon_name: "application-exit".into(),
-                activate: Box::new(|this: &mut Self| this.dispatch(TrayAction::QuitTray)),
+                activate: Box::new(|this: &mut Self| this.dispatch(TrayAction::Quit)),
                 ..Default::default()
             }
             .into(),
@@ -352,12 +345,8 @@ async fn main() -> Result<()> {
             TrayAction::Stop => {
                 let _ = tokio::task::spawn_blocking(|| send_request(Request::Stop)).await;
             }
-            TrayAction::ShutdownDaemon => {
+            TrayAction::Quit => {
                 let _ = tokio::task::spawn_blocking(|| send_request(Request::Shutdown)).await;
-                let _ = handle.shutdown().await;
-                break;
-            }
-            TrayAction::QuitTray => {
                 let _ = handle.shutdown().await;
                 break;
             }

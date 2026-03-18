@@ -29,7 +29,11 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
     let mut selected_row = app.playlist_selected;
 
     for (i, name) in app.playlist_names.iter().enumerate() {
-        let folder_prefix = if i == app.playlist_selected { "▾" } else { "▸" };
+        let folder_prefix = if i == app.playlist_selected && app.playlist_expanded {
+            "▾"
+        } else {
+            "▸"
+        };
         let folder_line = Line::from(vec![
             Span::styled(
                 format!("{folder_prefix} {:2}. ", i + 1),
@@ -50,7 +54,7 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
         ]);
         items.push(ListItem::new(folder_line));
 
-        if i == app.playlist_selected {
+        if i == app.playlist_selected && app.playlist_expanded {
             for (t_idx, track) in app.playlist_tracks.iter().enumerate() {
                 let duration = track
                     .duration
