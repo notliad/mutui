@@ -3,7 +3,7 @@ mod client;
 mod ui;
 
 use anyhow::Result;
-use app::{App, InputMode, PlaylistView, View};
+use app::{App, InputMode, LibraryMode, PlaylistView, View};
 use client::DaemonClient;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use mutui_common::{Playlist, Request, Response};
@@ -207,6 +207,10 @@ async fn handle_key(
         }
         InputMode::LibraryFolderPath => {
             handle_library_folder_input(app, daemon, key).await?;
+            return Ok(());
+        }
+        InputMode::LibraryFilter => {
+            handle_library_filter_input(app, key);
             return Ok(());
         }
         InputMode::Normal => {}
@@ -687,6 +691,13 @@ async fn refresh_library(app: &mut App, daemon: &mut DaemonClient) {
     if let Ok(Response::LibraryFolders(folders)) = daemon.send(&Request::ListLibraryFolders).await {
         app.library_folders = folders;
     }
+    if let Ok(Response::LibraryTracks(tracks)) = daemon.send(&Request::ScanLibrary).await {
+        app.library_tracks = tracks;
+        app.library_selected = 0;
+        app.library_group_selected = 0;
+        app.library_group_track_selected = 0;
+        app.library_group_focus = false;
+    }
 }
 
 async fn handle_library(
@@ -694,53 +705,273 @@ async fn handle_library(
     daemon: &mut DaemonClient,
     key: event::KeyEvent,
 ) -> Result<()> {
+    // --- Mode-cycle and filter activation (always available) ---
+    match key.code {
+        KeyCode::Char('m') => {
+            app.library_mode = app.library_mode.next();
+            app.library_group_selected = 0;
+            app.library_group_track_selected = 0;
+            app.library_group_focus = false;
+            return Ok(());
+        }
+        KeyCode::Char('/') => {
+            app.input_mode = InputMode::LibraryFilter;
+            return Ok(());
+        }
+        KeyCode::Char('f') => {
+            app.input_mode = InputMode::LibraryFolderPath;
+            app.library_folder_input.clear();
+            app.library_folder_cursor = 0;
+            return Ok(());
+        }
+        KeyCode::Char('R') => {
+            if let Some(folder) = app.library_folders.last().cloned() {
+                app.library_delete_confirm_folder = Some(folder);
+            }
+            return Ok(());
+        }
+        KeyCode::Char('r') => {
+            refresh_library(app, daemon).await;
+            app.notify("Library rescanned");
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    match app.library_mode {
+        LibraryMode::AllTracks => handle_library_all_tracks(app, daemon, key).await,
+        LibraryMode::ByArtist | LibraryMode::ByAlbum => {
+            handle_library_grouped(app, daemon, key).await
+        }
+    }
+}
+
+async fn handle_library_all_tracks(
+    app: &mut App,
+    daemon: &mut DaemonClient,
+    key: event::KeyEvent,
+) -> Result<()> {
     match key.code {
         KeyCode::Down | KeyCode::Char('j') => {
-            if !app.library_tracks.is_empty() {
-                app.library_selected =
-                    (app.library_selected + 1).min(app.library_tracks.len() - 1);
+            let len = library_filtered_track_count(app);
+            if len > 0 {
+                app.library_selected = (app.library_selected + 1).min(len - 1);
             }
         }
         KeyCode::Up | KeyCode::Char('k') => {
             app.library_selected = app.library_selected.saturating_sub(1);
         }
         KeyCode::Enter => {
-            if let Some(track) = app.library_tracks.get(app.library_selected).cloned() {
-                if app.status.queue.is_empty() {
-                    let _ = daemon.send(&Request::AddToQueue(track)).await;
-                } else {
-                    let target = (app.status.queue_index + 1).min(app.status.queue.len());
-                    let _ = daemon.send(&Request::InsertNext(track)).await;
-                    let _ = daemon.send(&Request::PlayIndex(target)).await;
-                }
+            if let Some(track) = library_get_filtered_track(app, app.library_selected).cloned() {
+                play_or_queue_now(app, daemon, track).await;
                 app.notify("Playing now!");
             }
         }
         KeyCode::Char('a') => {
-            if let Some(track) = app.library_tracks.get(app.library_selected).cloned() {
+            if let Some(track) = library_get_filtered_track(app, app.library_selected).cloned() {
                 let name = track.title.clone();
                 let _ = daemon.send(&Request::AddToQueue(track)).await;
                 app.notify(format!("Added to queue: {name}"));
             }
         }
-        KeyCode::Char('f') => {
-            app.input_mode = InputMode::LibraryFolderPath;
-            app.library_folder_input.clear();
-            app.library_folder_cursor = 0;
-        }
-        KeyCode::Char('R') => {
-            // Ask confirmation before removing the last added folder.
-            if let Some(folder) = app.library_folders.last().cloned() {
-                app.library_delete_confirm_folder = Some(folder);
-            }
-        }
-        KeyCode::Char('r') => {
-            refresh_library(app, daemon).await;
-            app.notify("Library rescanned");
-        }
+        KeyCode::Char('o') => open_external_current(app),
         _ => {}
     }
     Ok(())
+}
+
+async fn handle_library_grouped(
+    app: &mut App,
+    daemon: &mut DaemonClient,
+    key: event::KeyEvent,
+) -> Result<()> {
+    let groups = library_current_groups(app);
+    let group_count = groups.len();
+    let group_sel = app.library_group_selected.min(group_count.saturating_sub(1));
+    let track_count = if group_count > 0 { groups[group_sel].1.len() } else { 0 };
+
+    match key.code {
+        KeyCode::Down | KeyCode::Char('j') => {
+            if app.library_group_focus {
+                if track_count > 0 {
+                    app.library_group_track_selected =
+                        (app.library_group_track_selected + 1).min(track_count - 1);
+                }
+            } else if group_count > 0 {
+                app.library_group_selected = (group_sel + 1).min(group_count - 1);
+                app.library_group_track_selected = 0;
+            }
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            if app.library_group_focus {
+                app.library_group_track_selected =
+                    app.library_group_track_selected.saturating_sub(1);
+            } else {
+                app.library_group_selected = group_sel.saturating_sub(1);
+                app.library_group_track_selected = 0;
+            }
+        }
+        KeyCode::Char('l') | KeyCode::Enter if !app.library_group_focus => {
+            if track_count > 0 {
+                app.library_group_focus = true;
+                app.library_group_track_selected = 0;
+            }
+        }
+        KeyCode::Char('h') | KeyCode::Esc if app.library_group_focus => {
+            app.library_group_focus = false;
+        }
+        KeyCode::Enter if app.library_group_focus => {
+            let track_sel = app
+                .library_group_track_selected
+                .min(track_count.saturating_sub(1));
+            if let Some(track) = groups
+                .get(group_sel)
+                .and_then(|(_, tracks)| tracks.get(track_sel))
+                .map(|t| (*t).clone())
+            {
+                play_or_queue_now(app, daemon, track).await;
+                app.notify("Playing now!");
+            }
+        }
+        KeyCode::Char('a') if app.library_group_focus => {
+            let track_sel = app
+                .library_group_track_selected
+                .min(track_count.saturating_sub(1));
+            if let Some(track) = groups
+                .get(group_sel)
+                .and_then(|(_, tracks)| tracks.get(track_sel))
+                .map(|t| (*t).clone())
+            {
+                let name = track.title.clone();
+                let _ = daemon.send(&Request::AddToQueue(track)).await;
+                app.notify(format!("Added to queue: {name}"));
+            }
+        }
+        KeyCode::Char('a') if !app.library_group_focus => {
+            // Add all tracks from the selected group (left panel)
+            if let Some((name, tracks)) = groups.get(group_sel) {
+                let count = tracks.len();
+                for track in tracks {
+                    let _ = daemon.send(&Request::AddToQueue((*track).clone())).await;
+                }
+                app.notify(format!("Added {count} tracks from '{name}' to queue"));
+            }
+        }
+        KeyCode::Char('o') => open_external_current(app),
+        _ => {}
+    }
+    Ok(())
+}
+
+// Returns (group_name, Vec<Track>) for the current library mode + filter
+fn library_current_groups(app: &App) -> Vec<(String, Vec<mutui_common::Track>)> {
+    use std::collections::BTreeMap;
+    let filter = app.library_filter.to_lowercase();
+    match app.library_mode {
+        LibraryMode::AllTracks => vec![],
+        LibraryMode::ByArtist => {
+            let mut map: BTreeMap<String, Vec<mutui_common::Track>> = BTreeMap::new();
+            for t in &app.library_tracks {
+                map.entry(t.artist.clone()).or_default().push(t.clone());
+            }
+            map.into_iter()
+                .filter(|(name, _)| filter.is_empty() || name.to_lowercase().contains(&filter))
+                .collect()
+        }
+        LibraryMode::ByAlbum => {
+            let mut map: BTreeMap<String, Vec<mutui_common::Track>> = BTreeMap::new();
+            for t in &app.library_tracks {
+                let album = t.album.as_deref().unwrap_or("Unknown Album").to_string();
+                map.entry(album).or_default().push(t.clone());
+            }
+            map.into_iter()
+                .filter(|(name, _)| filter.is_empty() || name.to_lowercase().contains(&filter))
+                .collect()
+        }
+    }
+}
+
+fn library_filtered_track_count(app: &App) -> usize {
+    if app.library_filter.is_empty() {
+        return app.library_tracks.len();
+    }
+    let f = app.library_filter.to_lowercase();
+    app.library_tracks
+        .iter()
+        .filter(|t| {
+            t.title.to_lowercase().contains(&f)
+                || t.artist.to_lowercase().contains(&f)
+                || t.album.as_deref().unwrap_or("").to_lowercase().contains(&f)
+        })
+        .count()
+}
+
+fn library_get_filtered_track(
+    app: &App,
+    index: usize,
+) -> Option<&mutui_common::Track> {
+    if app.library_filter.is_empty() {
+        return app.library_tracks.get(index);
+    }
+    let f = app.library_filter.to_lowercase();
+    app.library_tracks
+        .iter()
+        .filter(|t| {
+            t.title.to_lowercase().contains(&f)
+                || t.artist.to_lowercase().contains(&f)
+                || t.album.as_deref().unwrap_or("").to_lowercase().contains(&f)
+        })
+        .nth(index)
+}
+
+async fn play_or_queue_now(
+    app: &mut App,
+    daemon: &mut DaemonClient,
+    track: mutui_common::Track,
+) {
+    if app.status.queue.is_empty() {
+        let _ = daemon.send(&Request::AddToQueue(track)).await;
+    } else {
+        let target = (app.status.queue_index + 1).min(app.status.queue.len());
+        let _ = daemon.send(&Request::InsertNext(track)).await;
+        let _ = daemon.send(&Request::PlayIndex(target)).await;
+    }
+}
+
+fn handle_library_filter_input(app: &mut App, key: event::KeyEvent) {
+    match key.code {
+        KeyCode::Esc | KeyCode::Enter => {
+            app.input_mode = InputMode::Normal;
+            // Reset group selection when filter changes
+            app.library_group_selected = 0;
+            app.library_group_track_selected = 0;
+            app.library_group_focus = false;
+            app.library_selected = 0;
+        }
+        KeyCode::Char(c) => {
+            app.library_filter.insert(app.library_filter_cursor, c);
+            app.library_filter_cursor += 1;
+        }
+        KeyCode::Backspace => {
+            if app.library_filter_cursor > 0 {
+                app.library_filter_cursor -= 1;
+                app.library_filter.remove(app.library_filter_cursor);
+            }
+        }
+        KeyCode::Delete => {
+            if app.library_filter_cursor < app.library_filter.len() {
+                app.library_filter.remove(app.library_filter_cursor);
+            }
+        }
+        KeyCode::Left => {
+            app.library_filter_cursor = app.library_filter_cursor.saturating_sub(1);
+        }
+        KeyCode::Right => {
+            app.library_filter_cursor =
+                (app.library_filter_cursor + 1).min(app.library_filter.len());
+        }
+        _ => {}
+    }
 }
 
 async fn handle_library_folder_input(

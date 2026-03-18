@@ -1,5 +1,7 @@
 use anyhow::Result;
 use log::{debug, info};
+use lofty::prelude::{Accessor, AudioFile, TaggedFileExt};
+use lofty::probe::Probe;
 use mutui_common::Track;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -118,18 +120,72 @@ fn file_to_track(path: &Path) -> Option<Track> {
         .and_then(|s| s.to_str())
         .unwrap_or("Unknown");
 
-    // Try to parse "Artist - Title" from filename
-    let (artist, title) = if let Some((a, t)) = file_stem.split_once(" - ") {
+    // Filename-based fallback values
+    let (fallback_artist, fallback_title) = if let Some((a, t)) = file_stem.split_once(" - ") {
         (a.trim().to_string(), t.trim().to_string())
     } else {
-        ("Local".to_string(), file_stem.to_string())
+        ("Unknown Artist".to_string(), file_stem.to_string())
     };
+    let fallback_album = path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .map(|s| s.to_string());
 
-    Some(Track {
-        id,
-        title,
-        artist,
-        duration: None,
-        url: path_str,
-    })
+    // Try to read real audio tags via lofty
+    match Probe::open(path).and_then(|p| p.read()) {
+        Ok(tagged_file) => {
+            let duration = Some(
+                tagged_file
+                    .properties()
+                    .duration()
+                    .as_secs_f64(),
+            );
+
+            // lofty tries tags in priority order; take the first populated tag
+            let tag = tagged_file.primary_tag().or_else(|| tagged_file.first_tag());
+
+            let (title, artist, album) = if let Some(tag) = tag {
+                let title = tag
+                    .title()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .unwrap_or(fallback_title);
+                let artist = tag
+                    .artist()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .unwrap_or(fallback_artist);
+                let album = tag
+                    .album()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .or(fallback_album);
+                (title, artist, album)
+            } else {
+                (fallback_title, fallback_artist, fallback_album)
+            };
+
+            Some(Track {
+                id,
+                title,
+                artist,
+                album,
+                duration,
+                url: path_str,
+            })
+        }
+        Err(e) => {
+            debug!("Could not read tags for {}: {e}", path.display());
+            // Fall back to filename heuristics with no duration
+            Some(Track {
+                id,
+                title: fallback_title,
+                artist: fallback_artist,
+                album: fallback_album,
+                duration: None,
+                url: path_str,
+            })
+        }
+    }
 }

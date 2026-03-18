@@ -33,7 +33,14 @@ impl MpvHandle {
         // Clean up stale socket
         let _ = std::fs::remove_file(&socket_path);
 
-        let audio_routing = setup_audio_routing();
+        let audio_routing = if audio_routing_requested() {
+            setup_audio_routing()
+        } else {
+            info!(
+                "Pulse loopback routing disabled (set MUTUI_ENABLE_AUDIO_ROUTING=1 to enable)"
+            );
+            None
+        };
 
         info!("Starting mpv with IPC at {}", socket_path.display());
 
@@ -246,6 +253,17 @@ impl MpvHandle {
         teardown_audio_routing(self.audio_routing);
         let _ = std::fs::remove_file(&self.socket_path);
     }
+}
+
+fn audio_routing_requested() -> bool {
+    let Ok(value) = std::env::var("MUTUI_ENABLE_AUDIO_ROUTING") else {
+        return false;
+    };
+
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 fn setup_audio_routing() -> Option<AudioRouting> {

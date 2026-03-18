@@ -43,6 +43,33 @@ pub enum InputMode {
     Search,
     PlaylistName,
     LibraryFolderPath,
+    LibraryFilter,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LibraryMode {
+    #[default]
+    AllTracks,
+    ByArtist,
+    ByAlbum,
+}
+
+impl LibraryMode {
+    pub fn next(self) -> Self {
+        match self {
+            Self::AllTracks => Self::ByArtist,
+            Self::ByArtist => Self::ByAlbum,
+            Self::ByAlbum => Self::AllTracks,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::AllTracks => "All Tracks",
+            Self::ByArtist => "Artists",
+            Self::ByAlbum => "Albums",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +127,13 @@ pub struct App {
     pub library_selected: usize,
     pub library_folder_input: String,
     pub library_folder_cursor: usize,
+    pub library_mode: LibraryMode,
+    pub library_filter: String,
+    pub library_filter_cursor: usize,
+    // Grouped view (Artists / Albums)
+    pub library_group_selected: usize,
+    pub library_group_track_selected: usize,
+    pub library_group_focus: bool,
 }
 
 impl App {
@@ -136,6 +170,12 @@ impl App {
             library_selected: 0,
             library_folder_input: String::new(),
             library_folder_cursor: 0,
+            library_mode: LibraryMode::AllTracks,
+            library_filter: String::new(),
+            library_filter_cursor: 0,
+            library_group_selected: 0,
+            library_group_track_selected: 0,
+            library_group_focus: false,
         }
     }
 

@@ -48,6 +48,7 @@ Notes:
 - `mutui` starts `mutuid` automatically if needed.
 - `q` closes only the TUI (music keeps playing).
 - `Q` shuts down daemon and stops playback.
+- Pulse loopback routing is disabled by default to avoid startup audio glitches. Enable it with `MUTUI_ENABLE_AUDIO_ROUTING=1 mutui` if you need the custom sink path.
 
 ## Optional: Desktop Install
 

@@ -36,6 +36,7 @@ impl YtDlpEntry {
             id,
             title,
             artist,
+            album: None,
             duration: self.duration,
             url,
         })
