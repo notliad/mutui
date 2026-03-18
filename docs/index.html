@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mutui | Terminal Music Player</title>
+    <meta
+      name="description"
+      content="mutui: player de musica no terminal para Linux com baixo uso de RAM, busca no YouTube e biblioteca local."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0f14;
+        --panel: #111a22;
+        --panel-strong: #172432;
+        --line: #274155;
+        --text: #d8e2ea;
+        --muted: #8ca2b2;
+        --accent: #7cf29a;
+        --accent-strong: #4fd576;
+        --warning: #ffc857;
+        --shadow: 0 24px 40px rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "IBM Plex Sans", sans-serif;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(124, 242, 154, 0.14), transparent 44%),
+          radial-gradient(circle at 100% 80%, rgba(79, 213, 118, 0.18), transparent 42%),
+          linear-gradient(145deg, #06090d 0%, #0a0f14 55%, #0f1620 100%);
+        color: var(--text);
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 32px 32px;
+        mask-image: radial-gradient(circle at center, black 45%, transparent 95%);
+      }
+
+      .page {
+        width: min(1040px, 92vw);
+        margin: 0 auto;
+        padding: 2.2rem 0 4rem;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2.4rem;
+      }
+
+      .brand {
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 2rem;
+        letter-spacing: 0.08em;
+      }
+
+      .repo-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        color: var(--text);
+        text-decoration: none;
+        padding: 0.5rem 0.85rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(17, 26, 34, 0.7);
+        transition: border-color 0.2s ease, transform 0.2s ease;
+      }
+
+      .repo-link:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+
+      .hero {
+        border: 1px solid var(--line);
+        background: linear-gradient(145deg, rgba(23, 36, 50, 0.75), rgba(10, 15, 20, 0.82));
+        border-radius: 24px;
+        padding: clamp(1.25rem, 3vw, 2.5rem);
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        width: 260px;
+        height: 260px;
+        right: -90px;
+        top: -90px;
+        border: 1px solid rgba(124, 242, 154, 0.3);
+        border-radius: 50%;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        background: rgba(124, 242, 154, 0.13);
+        color: var(--accent);
+        border: 1px solid rgba(124, 242, 154, 0.35);
+        border-radius: 999px;
+        padding: 0.24rem 0.68rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0.95rem 0 0.7rem;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: clamp(2.2rem, 8vw, 5rem);
+        line-height: 0.93;
+        letter-spacing: 0.03em;
+      }
+
+      .tagline {
+        font-size: clamp(1rem, 2.3vw, 1.35rem);
+        color: #e9f4fd;
+        margin: 0;
+        max-width: 44ch;
+      }
+
+      .tagline strong {
+        color: var(--warning);
+      }
+
+      .cta-row {
+        margin-top: 1.4rem;
+        display: flex;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        text-decoration: none;
+        border-radius: 12px;
+        padding: 0.7rem 1rem;
+        font-weight: 700;
+        border: 1px solid transparent;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        color: #08200d;
+      }
+
+      .btn-secondary {
+        border-color: var(--line);
+        background: rgba(17, 26, 34, 0.7);
+        color: var(--text);
+      }
+
+      .grid {
+        margin-top: 1.6rem;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(17, 26, 34, 0.72);
+        padding: 1rem;
+      }
+
+      h2 {
+        margin: 0 0 0.65rem;
+        font-size: 1.1rem;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 1rem;
+        color: var(--text);
+      }
+
+      li + li {
+        margin-top: 0.34rem;
+      }
+
+      pre {
+        margin: 0;
+        background: #071017;
+        border: 1px solid #22394b;
+        border-radius: 14px;
+        padding: 0.85rem;
+        color: #e6f8ff;
+        overflow: auto;
+        font-size: 0.88rem;
+      }
+
+      .note {
+        margin-top: 0.65rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .footer {
+        margin-top: 1rem;
+        color: var(--muted);
+        text-align: center;
+        font-size: 0.84rem;
+      }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(14px);
+        animation: rise 560ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+
+      .delay-1 {
+        animation-delay: 90ms;
+      }
+
+      .delay-2 {
+        animation-delay: 170ms;
+      }
+
+      .delay-3 {
+        animation-delay: 250ms;
+      }
+
+      @keyframes rise {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 820px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .topbar {
+          margin-bottom: 1.2rem;
+        }
+
+        .repo-link {
+          font-size: 0.92rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar reveal">
+        <div class="brand">mutui</div>
+        <a class="repo-link" href="https://github.com/notliad/mutui" target="_blank" rel="noreferrer">
+          Ver no GitHub
+        </a>
+      </header>
+
+      <section class="hero reveal delay-1">
+        <span class="eyebrow">Linux Terminal Player</span>
+        <h1>because you don't need to waste 1GB of RAM to listen to music</h1>
+        <p class="tagline">
+          Player de musica leve para Linux com busca no YouTube, biblioteca local e reproducao em background. <strong>Roda no terminal e entrega o que importa.</strong>
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#instalar">Instalar agora</a>
+          <a class="btn btn-secondary" href="https://github.com/notliad/mutui#readme" target="_blank" rel="noreferrer">Ler README</a>
+        </div>
+      </section>
+
+      <section class="grid reveal delay-2">
+        <article class="card" id="features">
+          <h2>Features</h2>
+          <ul>
+            <li>Busca e playback no YouTube com <code>yt-dlp</code> + <code>mpv</code></li>
+            <li>Biblioteca local por pastas (Artists e Albums)</li>
+            <li>Fila e playlists</li>
+            <li>Playback em background com daemon</li>
+            <li>TUI com atalhos rapidos para controle de musica</li>
+          </ul>
+        </article>
+
+        <article class="card" id="instalar">
+          <h2>Instalacao</h2>
+          <pre><code># 1) Dependencias
+# Arch
+sudo pacman -S mpv yt-dlp
+
+# Ubuntu/Debian
+sudo apt install mpv yt-dlp
+
+# Fedora
+sudo dnf install mpv yt-dlp
+
+# 2) Build e run
+cargo build --release
+./target/release/mutui</code></pre>
+          <p class="note">
+            Dica: <code>mutui</code> inicia o <code>mutuid</code> automaticamente quando necessario.
+          </p>
+        </article>
+      </section>
+
+      <p class="footer reveal delay-3">MIT License. Feito para ouvir musica sem inflar RAM.</p>
+    </main>
+  </body>
+</html>
