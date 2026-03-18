@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::{debug, info};
+use log::{debug, info, warn};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -267,6 +267,8 @@ fn audio_routing_requested() -> bool {
 }
 
 fn setup_audio_routing() -> Option<AudioRouting> {
+    cleanup_stale_audio_routing();
+
     let sink_module_id = run_pactl(&[
         "load-module",
         "module-null-sink",
@@ -302,6 +304,75 @@ fn teardown_audio_routing(routing: Option<AudioRouting>) {
         let _ = run_pactl(&["unload-module", &r.loopback_module_id.to_string()]);
         let _ = run_pactl(&["unload-module", &r.sink_module_id.to_string()]);
     }
+
+    // Also clear out any stale mutui modules left from a previous unclean exit.
+    cleanup_stale_audio_routing();
+}
+
+fn cleanup_stale_audio_routing() {
+    let modules = list_mutui_modules();
+    if modules.is_empty() {
+        return;
+    }
+
+    let mut removed = 0usize;
+
+    // Unload loopbacks first, then sinks.
+    for id in modules
+        .iter()
+        .filter(|(_, is_loopback)| *is_loopback)
+        .map(|(id, _)| *id)
+        .chain(
+            modules
+                .iter()
+                .filter(|(_, is_loopback)| !*is_loopback)
+                .map(|(id, _)| *id),
+        )
+    {
+        if run_pactl(&["unload-module", &id.to_string()]).is_some() {
+            removed += 1;
+        }
+    }
+
+    if removed > 0 {
+        info!("Cleaned up {removed} stale mutui audio module(s)");
+    }
+}
+
+fn list_mutui_modules() -> Vec<(u32, bool)> {
+    let output = match std::process::Command::new("pactl")
+        .args(["list", "short", "modules"])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => {
+            warn!("Could not query pactl modules for stale mutui cleanup");
+            return Vec::new();
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let id = parts.next()?.parse::<u32>().ok()?;
+
+            let is_mutui_loopback =
+                line.contains("module-loopback") && line.contains("source=mutui_sink.monitor");
+            let is_mutui_sink =
+                line.contains("module-null-sink") && line.contains("sink_name=mutui_sink");
+
+            if is_mutui_loopback {
+                Some((id, true))
+            } else if is_mutui_sink {
+                Some((id, false))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn run_pactl(args: &[&str]) -> Option<String> {

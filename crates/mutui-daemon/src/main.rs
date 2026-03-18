@@ -35,8 +35,8 @@ async fn main() -> Result<()> {
     // Install signal handler for clean shutdown
     let daemon_sig = Arc::clone(&daemon);
     tokio::spawn(async move {
-        let _ = tokio::signal::ctrl_c().await;
-        info!("Received SIGINT, shutting down...");
+        let signal_name = wait_for_shutdown_signal().await;
+        info!("Received {signal_name}, shutting down...");
         let mut d = daemon_sig.lock().await;
         d.mpv.shutdown().await;
         let _ = std::fs::remove_file(mutui_common::socket_path());
@@ -44,4 +44,39 @@ async fn main() -> Result<()> {
     });
 
     server::run(daemon).await
+}
+
+async fn wait_for_shutdown_signal() -> &'static str {
+    #[cfg(unix)]
+    {
+        use std::future::pending;
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let mut sigterm = signal(SignalKind::terminate()).ok();
+        let mut sigquit = signal(SignalKind::quit()).ok();
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => "SIGINT",
+            _ = async {
+                if let Some(sig) = sigterm.as_mut() {
+                    let _ = sig.recv().await;
+                } else {
+                    pending::<()>().await;
+                }
+            } => "SIGTERM",
+            _ = async {
+                if let Some(sig) = sigquit.as_mut() {
+                    let _ = sig.recv().await;
+                } else {
+                    pending::<()>().await;
+                }
+            } => "SIGQUIT",
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+        "SIGINT"
+    }
 }
