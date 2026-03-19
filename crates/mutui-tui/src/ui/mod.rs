@@ -156,6 +156,7 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         Row::new(vec!["<- / ->", "Seek backward / forward"]),
         Row::new(vec!["+ / -", "Volume up / down"]),
         Row::new(vec!["o", "Open current track externally"]),
+        Row::new(vec!["A", "Toggle automatic playback from last search"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["J / K", "Select queue item"]),
         Row::new(vec!["T", "Play selected queue item"]),

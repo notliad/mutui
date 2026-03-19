@@ -36,6 +36,10 @@ pub struct DaemonStatus {
     pub volume: i64,
     pub queue: Vec<Track>,
     pub queue_index: usize,
+    #[serde(default)]
+    pub autoplay_enabled: bool,
+    #[serde(default)]
+    pub autoplay_queue_indices: Vec<usize>,
 }
 
 impl Default for DaemonStatus {
@@ -48,6 +52,8 @@ impl Default for DaemonStatus {
             volume: 80,
             queue: Vec::new(),
             queue_index: 0,
+            autoplay_enabled: false,
+            autoplay_queue_indices: Vec::new(),
         }
     }
 }
@@ -76,6 +82,7 @@ pub enum Request {
 
     // Search
     Search(String),
+    ToggleAutoplay,
 
     // Playlists
     ListPlaylists,

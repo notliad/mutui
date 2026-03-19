@@ -5,6 +5,7 @@ use ratatui::widgets::*;
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" Queue ")
+        .title_bottom(Line::from("* auto").fg(Color::LightBlue))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
     let inner = block.inner(area);
@@ -30,6 +31,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         let real_idx = start + idx;
         let current = real_idx == app.status.queue_index;
         let selected = real_idx == app.queue_selected;
+        let is_autoplay = app.status.autoplay_queue_indices.contains(&real_idx);
 
         let prefix = match (current, selected) {
             (true, true) => "◆",
@@ -38,7 +40,9 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
             (false, false) => " ",
         };
 
-        let prefix_style = if current {
+        let prefix_style = if is_autoplay {
+            Style::default().fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+        } else if current {
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
@@ -46,7 +50,13 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(Color::DarkGray)
         };
 
-        let title_style = if current {
+        let title_style = if is_autoplay {
+            if selected {
+                Style::default().fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::LightBlue)
+            }
+        } else if current {
             Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
@@ -56,8 +66,9 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 
         rows.push(Line::from(vec![
             Span::styled(format!("{prefix}{:02} ", real_idx + 1), prefix_style),
+            Span::styled(if is_autoplay { "* " } else { "  " }, prefix_style),
             Span::styled(
-                fit_inline(&track.title, inner.width.saturating_sub(5) as usize),
+                fit_inline(&track.title, inner.width.saturating_sub(7) as usize),
                 title_style,
             ),
         ]));

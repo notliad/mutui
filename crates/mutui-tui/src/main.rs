@@ -295,6 +295,12 @@ async fn handle_key(
                 app.notify("Queue is empty: nothing to save");
             }
         }
+        KeyCode::Char('A') => {
+            let _ = daemon.send(&Request::ToggleAutoplay).await;
+            app.status.autoplay_enabled = !app.status.autoplay_enabled;
+            let mode = if app.status.autoplay_enabled { "ON" } else { "OFF" };
+            app.notify(format!("Auto-play: {mode}"));
+        }
         KeyCode::Char('J') => {
             if !app.status.queue.is_empty() {
                 app.queue_selected =

@@ -1,14 +1,16 @@
 use anyhow::Result;
 use log::{debug, error, info};
-use mutui_common::{encode_message, DaemonStatus, PlayerState, Request, Response};
+use mutui_common::{
+    encode_message, DaemonStatus, PlayerState, Request, Response, Track,
+};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 
+use crate::library;
 use crate::mpv::MpvHandle;
 use crate::playlist;
-use crate::library;
 use crate::queue::Queue;
 use crate::search;
 
@@ -16,6 +18,9 @@ pub struct Daemon {
     pub mpv: MpvHandle,
     pub queue: Queue,
     pub volume: i64,
+    pub autoplay_enabled: bool,
+    pub autoplay_results: Vec<Track>,
+    pub autoplay_next_index: usize,
 }
 
 impl Daemon {
@@ -28,7 +33,29 @@ impl Daemon {
             mpv,
             queue: Queue::new(),
             volume,
+            autoplay_enabled: false,
+            autoplay_results: Vec::new(),
+            autoplay_next_index: 0,
         })
+    }
+
+    fn store_search_results(&mut self, tracks: &[Track]) {
+        self.autoplay_results = tracks.to_vec();
+        self.autoplay_next_index = 0;
+    }
+
+    fn append_next_autoplay_track(&mut self) -> bool {
+        if !self.autoplay_enabled {
+            return false;
+        }
+
+        let Some(track) = self.autoplay_results.get(self.autoplay_next_index).cloned() else {
+            return false;
+        };
+
+        self.autoplay_next_index += 1;
+        self.queue.add_autoplay(track);
+        true
     }
 
     pub async fn get_status(&self) -> DaemonStatus {
@@ -49,8 +76,10 @@ impl Daemon {
             position: self.mpv.get_time_pos().await,
             duration: self.mpv.get_duration().await,
             volume: self.mpv.get_volume().await,
-            queue: self.queue.tracks.clone(),
+            queue: self.queue.tracks(),
             queue_index: self.queue.current,
+            autoplay_enabled: self.autoplay_enabled,
+            autoplay_queue_indices: self.queue.autoplay_indices(),
         }
     }
 
@@ -97,6 +126,10 @@ impl Daemon {
             }
             Request::Next => {
                 if self.queue.next() {
+                    if let Err(e) = self.play_current().await {
+                        return Response::Error(e.to_string());
+                    }
+                } else if self.append_next_autoplay_track() && self.queue.next() {
                     if let Err(e) = self.play_current().await {
                         return Response::Error(e.to_string());
                     }
@@ -157,6 +190,7 @@ impl Daemon {
             }
             Request::ClearQueue => {
                 self.queue.clear();
+                self.autoplay_next_index = 0;
                 let _ = self.mpv.stop().await;
                 Response::Ok
             }
@@ -173,9 +207,16 @@ impl Daemon {
                 Response::Ok
             }
             Request::Search(query) => match search::search(&query, 15).await {
-                Ok(tracks) => Response::SearchResults(tracks),
+                Ok(tracks) => {
+                    self.store_search_results(&tracks);
+                    Response::SearchResults(tracks)
+                }
                 Err(e) => Response::Error(e.to_string()),
             },
+            Request::ToggleAutoplay => {
+                self.autoplay_enabled = !self.autoplay_enabled;
+                Response::Ok
+            }
             Request::ListPlaylists => match playlist::list() {
                 Ok(names) => Response::Playlists(names),
                 Err(e) => Response::Error(e.to_string()),
@@ -195,6 +236,7 @@ impl Daemon {
             Request::LoadPlaylist(name) => match playlist::load(&name) {
                 Ok(pl) => {
                     self.queue.clear();
+                    self.autoplay_next_index = 0;
                     let _ = self.mpv.stop().await;
                     for track in pl.tracks {
                         self.queue.add(track);
@@ -214,9 +256,7 @@ impl Daemon {
                 Ok(folders) => Response::LibraryFolders(folders),
                 Err(e) => Response::Error(e.to_string()),
             },
-            Request::ListLibraryFolders => {
-                Response::LibraryFolders(library::list_folders())
-            }
+            Request::ListLibraryFolders => Response::LibraryFolders(library::list_folders()),
             Request::ScanLibrary => {
                 let tracks = library::scan();
                 Response::LibraryTracks(tracks)
@@ -225,7 +265,7 @@ impl Daemon {
                 let status = self.get_status().await;
                 Response::Status(Box::new(status))
             }
-            Request::Shutdown => Response::Ok, // handled in the server loop
+            Request::Shutdown => Response::Ok,
         }
     }
 }
@@ -236,10 +276,15 @@ pub async fn check_track_ended(daemon: &Arc<Mutex<Daemon>>) {
     if d.queue.is_empty() {
         return;
     }
+
     let idle = d.mpv.is_idle().await;
-    if idle && !d.queue.is_empty() && d.queue.current_track().is_some() {
-        // mpv went idle → track ended, try next
+    if idle && d.queue.current_track().is_some() {
         if d.queue.next() {
+            let _ = d.play_current().await;
+            return;
+        }
+
+        if d.append_next_autoplay_track() && d.queue.next() {
             let _ = d.play_current().await;
         }
     }
@@ -255,9 +300,8 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
         len_line.clear();
         json_line.clear();
 
-        // Read length line
         match reader.read_line(&mut len_line).await {
-            Ok(0) => break, // connection closed
+            Ok(0) => break,
             Ok(_) => {}
             Err(e) => {
                 debug!("Client read error: {e}");
@@ -273,7 +317,6 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
             }
         };
 
-        // Read JSON line
         match reader.read_line(&mut json_line).await {
             Ok(0) => break,
             Ok(_) => {}
@@ -301,7 +344,11 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
             // Handle slow/search and disk-heavy requests without holding the
             // global daemon lock, so status/playback requests stay responsive.
             Request::Search(query) => match search::search(&query, 15).await {
-                Ok(tracks) => Response::SearchResults(tracks),
+                Ok(tracks) => {
+                    let mut d = daemon.lock().await;
+                    d.store_search_results(&tracks);
+                    Response::SearchResults(tracks)
+                }
                 Err(e) => Response::Error(e.to_string()),
             },
             Request::ListPlaylists => match playlist::list() {
@@ -337,6 +384,7 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                 Ok(pl) => {
                     let mut d = daemon.lock().await;
                     d.queue.clear();
+                    d.autoplay_next_index = 0;
                     let _ = d.mpv.stop().await;
                     for track in pl.tracks {
                         d.queue.add(track);
@@ -377,13 +425,11 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
 pub async fn run(daemon: Arc<Mutex<Daemon>>) -> Result<()> {
     let socket_path = mutui_common::socket_path();
 
-    // Clean up stale socket
     let _ = std::fs::remove_file(&socket_path);
 
     let listener = UnixListener::bind(&socket_path)?;
     info!("Daemon listening on {}", socket_path.display());
 
-    // Spawn track-end checker
     let daemon_bg = Arc::clone(&daemon);
     tokio::spawn(async move {
         loop {
