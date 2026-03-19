@@ -172,7 +172,7 @@ impl App {
             library_selected: 0,
             library_folder_input: String::new(),
             library_folder_cursor: 0,
-            library_mode: LibraryMode::AllTracks,
+            library_mode: LibraryMode::ByArtist,
             library_filter: String::new(),
             library_filter_cursor: 0,
             library_group_selected: 0,

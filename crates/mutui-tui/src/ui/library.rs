@@ -118,7 +118,7 @@ fn render_folders(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let modes = [LibraryMode::AllTracks, LibraryMode::ByArtist, LibraryMode::ByAlbum];
+    let modes = [LibraryMode::ByArtist, LibraryMode::ByAlbum, LibraryMode::AllTracks];
     let mut spans: Vec<Span> = vec![Span::raw("  ")];
     for (i, mode) in modes.iter().enumerate() {
         if i > 0 {
@@ -214,7 +214,7 @@ fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray))
+                .border_style(Style::default().fg(Color::Cyan))
                 .title(format!(" Tracks ({}) ", tracks.len()))
                 .title_bottom(
                     Line::from(
