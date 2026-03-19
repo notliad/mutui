@@ -1115,8 +1115,28 @@ fn open_track_external(app: &mut App, track: &mutui_common::Track) {
         return;
     };
 
-    match std::process::Command::new("xdg-open")
-        .arg(&target)
+    #[cfg(target_os = "linux")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(&target);
+        c
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.arg(&target);
+        c
+    };
+
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", "start", "", &target]);
+        c
+    };
+
+    match cmd
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

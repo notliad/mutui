@@ -111,24 +111,43 @@ pub enum Response {
 
 // --- Paths ---
 
+#[cfg(windows)]
+pub const DAEMON_TCP_ADDR: &str = "127.0.0.1:43821";
+
 pub fn socket_path() -> PathBuf {
-    let runtime_dir =
-        std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("mutui.sock")
+    #[cfg(unix)]
+    {
+        let runtime_dir =
+            std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
+        PathBuf::from(runtime_dir).join("mutui.sock")
+    }
+
+    #[cfg(windows)]
+    {
+        data_dir().join("mutui.sock")
+    }
 }
 
 pub fn mpv_socket_path() -> PathBuf {
-    let runtime_dir =
-        std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("mutui-mpv.sock")
+    #[cfg(unix)]
+    {
+        let runtime_dir =
+            std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
+        PathBuf::from(runtime_dir).join("mutui-mpv.sock")
+    }
+
+    #[cfg(windows)]
+    {
+        PathBuf::from(r"\\.\pipe\mutui-mpv")
+    }
 }
 
 pub fn data_dir() -> PathBuf {
-    let data_dir = std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        format!("{home}/.local/share")
-    });
-    let path = PathBuf::from(data_dir).join("mutui");
+    let path = directories::ProjectDirs::from("org", "mutui", "mutui")
+        .map(|dirs| dirs.data_local_dir().to_path_buf())
+        .unwrap_or_else(|| {
+            std::env::temp_dir().join("mutui")
+        });
     std::fs::create_dir_all(&path).ok();
     path
 }

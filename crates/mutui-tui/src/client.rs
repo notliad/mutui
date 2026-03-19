@@ -2,11 +2,19 @@ use anyhow::{Context, Result};
 use mutui_common::{encode_message, Request, Response};
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
+#[cfg(unix)]
+use tokio::net::UnixStream as IpcStream;
+#[cfg(windows)]
+use tokio::net::TcpStream as IpcStream;
+
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x0000_0008;
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
 pub struct DaemonClient {
-    reader: BufReader<tokio::io::ReadHalf<UnixStream>>,
-    writer: tokio::io::WriteHalf<UnixStream>,
+    reader: BufReader<tokio::io::ReadHalf<IpcStream>>,
+    writer: tokio::io::WriteHalf<IpcStream>,
 }
 
 pub async fn send_once(req: Request) -> Result<Response> {
@@ -16,10 +24,19 @@ pub async fn send_once(req: Request) -> Result<Response> {
 
 impl DaemonClient {
     pub async fn connect() -> Result<Self> {
-        let socket = mutui_common::socket_path();
-        let stream = UnixStream::connect(&socket)
+        #[cfg(unix)]
+        let stream = {
+            let socket = mutui_common::socket_path();
+            IpcStream::connect(&socket)
+                .await
+                .context("Could not connect to mutui daemon. Is it running?")?
+        };
+
+        #[cfg(windows)]
+        let stream = IpcStream::connect(mutui_common::DAEMON_TCP_ADDR)
             .await
             .context("Could not connect to mutui daemon. Is it running?")?;
+
         let (reader, writer) = tokio::io::split(stream);
         Ok(Self {
             reader: BufReader::new(reader),
@@ -59,23 +76,36 @@ pub fn start_daemon() -> Result<()> {
 
     use std::process::{Command, Stdio};
 
-    // Start in a new session so the daemon survives TUI/session teardown
-    // (practical equivalent of shell disown for this process tree).
-    let spawned = Command::new("setsid")
-        .arg(&daemon_exe)
+    let mut direct = Command::new(&daemon_exe);
+    direct
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
+        .stderr(Stdio::null());
 
-    if spawned.is_err() {
-        // Fallback when `setsid` is unavailable.
-        Command::new(&daemon_exe)
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        direct.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
+
+    #[cfg(unix)]
+    {
+        // Start in a new session so the daemon survives TUI/session teardown.
+        let spawned = Command::new("setsid")
+            .arg(&daemon_exe)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()
-            .context("Failed to start daemon")?;
+            .spawn();
+
+        if spawned.is_err() {
+            direct.spawn().context("Failed to start daemon")?;
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        direct.spawn().context("Failed to start daemon")?;
     }
 
     Ok(())
@@ -87,19 +117,33 @@ pub fn start_tray() {
         return;
     };
 
-    let _ = std::process::Command::new("setsid")
-        .arg(&tray_exe)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .or_else(|_| {
-            std::process::Command::new(&tray_exe)
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-        });
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("setsid")
+            .arg(&tray_exe)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new(&tray_exe)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+            });
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new(&tray_exe);
+        cmd.stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+        let _ = cmd.spawn();
+    }
 }
 
 /// Stop the tray process if it is running (best-effort).
@@ -114,10 +158,20 @@ pub fn stop_tray() {
         return;
     };
 
-    let _ = std::process::Command::new("kill")
-        .arg("-TERM")
-        .arg(pid.to_string())
-        .status();
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .status();
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .status();
+    }
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -138,18 +192,23 @@ fn is_executable(path: &Path) -> bool {
 }
 
 fn find_binary(name: &str) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let file_name = format!("{name}.exe");
+    #[cfg(not(windows))]
+    let file_name = name.to_string();
+
     let exe = std::env::current_exe().ok()?;
     let mut candidates: Vec<PathBuf> = Vec::new();
 
     if let Some(parent) = exe.parent() {
-        candidates.push(parent.join(name));
+        candidates.push(parent.join(&file_name));
     }
     if let Ok(home) = std::env::var("HOME") {
-        candidates.push(PathBuf::from(home).join(".local/bin").join(name));
+        candidates.push(PathBuf::from(home).join(".local/bin").join(&file_name));
     }
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
-            candidates.push(dir.join(name));
+            candidates.push(dir.join(&file_name));
         }
     }
 

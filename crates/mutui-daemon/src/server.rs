@@ -3,7 +3,10 @@ use log::{debug, error, info};
 use mutui_common::{encode_message, DaemonStatus, PlayerState, Request, Response};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
+#[cfg(unix)]
+use tokio::net::{UnixListener as IpcListener, UnixStream as IpcStream};
+#[cfg(windows)]
+use tokio::net::{TcpListener as IpcListener, TcpStream as IpcStream};
 use tokio::sync::Mutex;
 
 use crate::mpv::MpvHandle;
@@ -245,7 +248,7 @@ pub async fn check_track_ended(daemon: &Arc<Mutex<Daemon>>) {
     }
 }
 
-async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
+async fn handle_client(stream: IpcStream, daemon: Arc<Mutex<Daemon>>) {
     let (reader, mut writer) = tokio::io::split(stream);
     let mut reader = BufReader::new(reader);
     let mut len_line = String::new();
@@ -375,13 +378,22 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
 }
 
 pub async fn run(daemon: Arc<Mutex<Daemon>>) -> Result<()> {
-    let socket_path = mutui_common::socket_path();
+    #[cfg(unix)]
+    let listener = {
+        let socket_path = mutui_common::socket_path();
+        // Clean up stale socket.
+        let _ = std::fs::remove_file(&socket_path);
+        let listener = IpcListener::bind(&socket_path)?;
+        info!("Daemon listening on {}", socket_path.display());
+        listener
+    };
 
-    // Clean up stale socket
-    let _ = std::fs::remove_file(&socket_path);
-
-    let listener = UnixListener::bind(&socket_path)?;
-    info!("Daemon listening on {}", socket_path.display());
+    #[cfg(windows)]
+    let listener = {
+        let listener = IpcListener::bind(mutui_common::DAEMON_TCP_ADDR).await?;
+        info!("Daemon listening on {}", mutui_common::DAEMON_TCP_ADDR);
+        listener
+    };
 
     // Spawn track-end checker
     let daemon_bg = Arc::clone(&daemon);

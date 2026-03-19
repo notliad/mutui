@@ -17,14 +17,28 @@ async fn main() -> Result<()> {
         .init();
 
     // Check if already running
-    let socket = mutui_common::socket_path();
-    if socket.exists() {
-        if tokio::net::UnixStream::connect(&socket).await.is_ok() {
+    #[cfg(unix)]
+    {
+        let socket = mutui_common::socket_path();
+        if socket.exists() {
+            if tokio::net::UnixStream::connect(&socket).await.is_ok() {
+                eprintln!("mutui daemon is already running.");
+                std::process::exit(1);
+            }
+            // Stale socket, remove it.
+            let _ = std::fs::remove_file(&socket);
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        if tokio::net::TcpStream::connect(mutui_common::DAEMON_TCP_ADDR)
+            .await
+            .is_ok()
+        {
             eprintln!("mutui daemon is already running.");
             std::process::exit(1);
         }
-        // Stale socket, remove it
-        let _ = std::fs::remove_file(&socket);
     }
 
     info!("Starting mutui daemon...");

@@ -4,7 +4,10 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+#[cfg(unix)]
 use tokio::net::UnixStream;
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
@@ -21,8 +24,14 @@ struct AudioRouting {
 pub struct MpvHandle {
     process: Child,
     socket_path: PathBuf,
+    #[cfg(unix)]
     writer: Mutex<tokio::io::WriteHalf<UnixStream>>,
+    #[cfg(unix)]
     reader: Mutex<BufReader<tokio::io::ReadHalf<UnixStream>>>,
+    #[cfg(windows)]
+    writer: Mutex<tokio::io::WriteHalf<NamedPipeClient>>,
+    #[cfg(windows)]
+    reader: Mutex<BufReader<tokio::io::ReadHalf<NamedPipeClient>>>,
     audio_routing: Option<AudioRouting>,
 }
 
@@ -30,8 +39,11 @@ impl MpvHandle {
     pub async fn start() -> Result<Self> {
         let socket_path = mutui_common::mpv_socket_path();
 
-        // Clean up stale socket
-        let _ = std::fs::remove_file(&socket_path);
+        #[cfg(unix)]
+        {
+            // Clean up stale socket.
+            let _ = std::fs::remove_file(&socket_path);
+        }
 
         let audio_routing = if audio_routing_requested() {
             setup_audio_routing()
@@ -61,20 +73,39 @@ impl MpvHandle {
             .spawn()
             .context("Failed to start mpv. Is mpv installed?")?;
 
-        // Wait for IPC socket
-        for i in 0..100 {
-            if socket_path.exists() {
-                break;
+        #[cfg(unix)]
+        let stream = {
+            // Wait for IPC socket file to appear on Unix.
+            for i in 0..100 {
+                if socket_path.exists() {
+                    break;
+                }
+                if i == 99 {
+                    anyhow::bail!("mpv IPC socket did not appear");
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             }
-            if i == 99 {
-                anyhow::bail!("mpv IPC socket did not appear");
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
 
-        let stream = UnixStream::connect(&socket_path)
-            .await
-            .context("Failed to connect to mpv IPC socket")?;
+            UnixStream::connect(&socket_path)
+                .await
+                .context("Failed to connect to mpv IPC socket")?
+        };
+
+        #[cfg(windows)]
+        let stream = {
+            let pipe_name = socket_path.to_string_lossy().to_string();
+            let mut connected = None;
+
+            for _ in 0..100 {
+                if let Ok(client) = ClientOptions::new().open(&pipe_name) {
+                    connected = Some(client);
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+
+            connected.context("Failed to connect to mpv IPC named pipe")?
+        };
 
         let (reader, writer) = tokio::io::split(stream);
         let reader = BufReader::new(reader);
@@ -251,7 +282,10 @@ impl MpvHandle {
         let _ = self.command(&["quit"]).await;
         let _ = self.process.kill().await;
         teardown_audio_routing(self.audio_routing);
-        let _ = std::fs::remove_file(&self.socket_path);
+        #[cfg(unix)]
+        {
+            let _ = std::fs::remove_file(&self.socket_path);
+        }
     }
 }
 
