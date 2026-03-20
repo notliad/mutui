@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
 
     info!("Starting mutui daemon...");
 
-    let daemon = server::Daemon::new().await?;
+    let daemon = server::Daemon::new()?;
     let daemon = Arc::new(Mutex::new(daemon));
 
     // Install signal handler for clean shutdown
@@ -37,8 +37,8 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         let signal_name = wait_for_shutdown_signal().await;
         info!("Received {signal_name}, shutting down...");
-        let mut d = daemon_sig.lock().await;
-        d.mpv.shutdown().await;
+        let d = daemon_sig.lock().await;
+        d.mpv.shutdown();
         let _ = std::fs::remove_file(mutui_common::socket_path());
         std::process::exit(0);
     });

@@ -1,0 +1,25 @@
+This project includes code and/or links to the following third-party libraries:
+
+---
+
+libmpv2, libmpv2-sys (https://github.com/kohsine/libmpv-rs)
+License: GNU Lesser General Public License v2.1 (LGPL-2.1)
+
+This project dynamically links to libmpv (LGPL-2.1). You may obtain a copy of the source code for libmpv at https://github.com/mpv-player/mpv
+
+A copy of the LGPL-2.1 license is included below.
+
+---
+
+r-efi (https://github.com/r-efi/r-efi)
+License: Apache-2.0 OR LGPL-2.1-or-later OR MIT
+
+---
+
+Other dependencies are licensed under MIT, Apache-2.0, or compatible licenses. See Cargo.toml and cargo license output for details.
+
+---
+
+Full text of LGPL-2.1 follows:
+
+[See LICENSE.LGPL-2.1]

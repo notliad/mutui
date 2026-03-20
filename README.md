@@ -90,3 +90,5 @@ Global:
 ## License
 
 MIT (`LICENSE`).
+
+This project dynamically links to [libmpv](https://mpv.io/) via the [libmpv2](https://github.com/kohsine/libmpv-rs) crate, which is licensed under the GNU LGPL-2.1. See `THIRD-PARTY-LICENSES.txt` and `LICENSE.LGPL-2.1` for details and obligations regarding LGPL components.

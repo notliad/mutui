@@ -1,14 +1,6 @@
-use anyhow::{Context, Result};
-use log::{debug, info, warn};
-use serde_json::{json, Value};
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
-use tokio::process::{Child, Command};
-use tokio::sync::Mutex;
-
-static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+use anyhow::Result;
+use libmpv2::Mpv;
+use log::{info, warn};
 
 const MUTUI_SINK: &str = "mutui_sink";
 
@@ -19,20 +11,12 @@ struct AudioRouting {
 }
 
 pub struct MpvHandle {
-    process: Child,
-    socket_path: PathBuf,
-    writer: Mutex<tokio::io::WriteHalf<UnixStream>>,
-    reader: Mutex<BufReader<tokio::io::ReadHalf<UnixStream>>>,
+    mpv: Mpv,
     audio_routing: Option<AudioRouting>,
 }
 
 impl MpvHandle {
-    pub async fn start() -> Result<Self> {
-        let socket_path = mutui_common::mpv_socket_path();
-
-        // Clean up stale socket
-        let _ = std::fs::remove_file(&socket_path);
-
+    pub fn start() -> Result<Self> {
         let audio_routing = if audio_routing_requested() {
             setup_audio_routing()
         } else {
@@ -42,216 +26,97 @@ impl MpvHandle {
             None
         };
 
-        info!("Starting mpv with IPC at {}", socket_path.display());
+        let audio_device = audio_routing
+            .as_ref()
+            .map(|_| format!("pulse/{MUTUI_SINK}"));
 
-        let mut cmd = Command::new("mpv");
-        cmd.arg("--idle=yes")
-            .arg("--no-video")
-            .arg("--no-terminal")
-            .arg(format!("--input-ipc-server={}", socket_path.display()))
-            .arg("--ytdl=yes")
-            .arg("--ytdl-format=bestaudio/best")
-            .kill_on_drop(false);
-
-        if audio_routing.is_some() {
-            cmd.arg(format!("--audio-device=pulse/{MUTUI_SINK}"));
-        }
-
-        let process = cmd
-            .spawn()
-            .context("Failed to start mpv. Is mpv installed?")?;
-
-        // Wait for IPC socket
-        for i in 0..100 {
-            if socket_path.exists() {
-                break;
+        let mpv = Mpv::with_initializer(|init| {
+            init.set_option("vo", "null")?;
+            init.set_option("video", "no")?;
+            init.set_option("ytdl", "yes")?;
+            init.set_option("ytdl-format", "bestaudio/best")?;
+            if let Some(ref dev) = audio_device {
+                init.set_option("audio-device", dev.as_str())?;
             }
-            if i == 99 {
-                anyhow::bail!("mpv IPC socket did not appear");
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-
-        let stream = UnixStream::connect(&socket_path)
-            .await
-            .context("Failed to connect to mpv IPC socket")?;
-
-        let (reader, writer) = tokio::io::split(stream);
-        let reader = BufReader::new(reader);
-
-        info!("Connected to mpv IPC");
-
-        Ok(Self {
-            process,
-            socket_path,
-            writer: Mutex::new(writer),
-            reader: Mutex::new(reader),
-            audio_routing,
+            Ok(())
         })
+        .map_err(|e| anyhow::anyhow!("Failed to create libmpv instance: {e}"))?;
+
+        info!("libmpv initialized (embedded)");
+
+        Ok(Self { mpv, audio_routing })
     }
 
-    /// Send a command to mpv and return the response.
-    pub async fn command(&self, args: &[&str]) -> Result<Value> {
-        let id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
-        let cmd = json!({
-            "command": args,
-            "request_id": id,
-        });
-
-        let mut line = serde_json::to_string(&cmd)? + "\n";
-
-        {
-            let mut writer = self.writer.lock().await;
-            writer
-                .write_all(line.as_bytes())
-                .await
-                .context("Failed to write to mpv")?;
-            writer.flush().await?;
-        }
-
-        // Read lines until we find our response
-        let mut reader = self.reader.lock().await;
-        line.clear();
-        loop {
-            line.clear();
-            let n = reader.read_line(&mut line).await?;
-            if n == 0 {
-                anyhow::bail!("mpv IPC connection closed");
-            }
-            if let Ok(val) = serde_json::from_str::<Value>(line.trim()) {
-                if val.get("request_id").and_then(|v| v.as_u64()) == Some(id) {
-                    let error = val
-                        .get("error")
-                        .and_then(|e| e.as_str())
-                        .unwrap_or("unknown");
-                    if error != "success" {
-                        debug!("mpv error for {:?}: {}", args, error);
-                    }
-                    return Ok(val);
-                }
-                // else it's an event or response to a different command, skip
-            }
-        }
+    pub fn loadfile(&self, url: &str) -> Result<()> {
+        self.mpv
+            .command("loadfile", &[url, "replace"])
+            .map_err(|e| anyhow::anyhow!("loadfile failed: {e}"))
     }
 
-    pub async fn loadfile(&self, url: &str) -> Result<()> {
-        self.command(&["loadfile", url, "replace"]).await?;
-        Ok(())
+    pub fn play(&self) -> Result<()> {
+        self.mpv
+            .set_property("pause", false)
+            .map_err(|e| anyhow::anyhow!("play failed: {e}"))
     }
 
-    pub async fn play(&self) -> Result<()> {
-        self.set_property("pause", json!(false)).await
+    pub fn pause(&self) -> Result<()> {
+        self.mpv
+            .set_property("pause", true)
+            .map_err(|e| anyhow::anyhow!("pause failed: {e}"))
     }
 
-    pub async fn pause(&self) -> Result<()> {
-        self.set_property("pause", json!(true)).await
+    pub fn toggle_pause(&self) -> Result<()> {
+        let paused: bool = self.mpv.get_property("pause").unwrap_or(false);
+        self.mpv
+            .set_property("pause", !paused)
+            .map_err(|e| anyhow::anyhow!("toggle_pause failed: {e}"))
     }
 
-    pub async fn toggle_pause(&self) -> Result<()> {
-        let paused = self.get_property("pause").await?;
-        let is_paused = paused.as_bool().unwrap_or(false);
-        self.set_property("pause", json!(!is_paused)).await
+    pub fn stop(&self) -> Result<()> {
+        self.mpv
+            .command("stop", &[])
+            .map_err(|e| anyhow::anyhow!("stop failed: {e}"))
     }
 
-    pub async fn stop(&self) -> Result<()> {
-        self.command(&["stop"]).await?;
-        Ok(())
+    pub fn seek(&self, seconds: f64) -> Result<()> {
+        self.mpv
+            .command("seek", &[&seconds.to_string(), "absolute"])
+            .map_err(|e| anyhow::anyhow!("seek failed: {e}"))
     }
 
-    pub async fn seek(&self, seconds: f64) -> Result<()> {
-        self.command(&["seek", &seconds.to_string(), "absolute"])
-            .await?;
-        Ok(())
+    pub fn set_volume(&self, volume: i64) -> Result<()> {
+        self.mpv
+            .set_property("volume", volume)
+            .map_err(|e| anyhow::anyhow!("set_volume failed: {e}"))
     }
 
-    pub async fn set_volume(&self, volume: i64) -> Result<()> {
-        self.set_property("volume", json!(volume)).await
+    pub fn get_time_pos(&self) -> f64 {
+        self.mpv.get_property::<f64>("time-pos").unwrap_or(0.0)
     }
 
-    pub async fn get_property(&self, name: &str) -> Result<Value> {
-        let resp = self.command(&["get_property", name]).await?;
-        Ok(resp.get("data").cloned().unwrap_or(Value::Null))
+    pub fn get_duration(&self) -> f64 {
+        self.mpv.get_property::<f64>("duration").unwrap_or(0.0)
     }
 
-    pub async fn set_property(&self, name: &str, value: Value) -> Result<()> {
-        let id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
-        let cmd = json!({
-            "command": ["set_property", name, value],
-            "request_id": id,
-        });
-
-        let line = serde_json::to_string(&cmd)? + "\n";
-
-        {
-            let mut writer = self.writer.lock().await;
-            writer.write_all(line.as_bytes()).await?;
-            writer.flush().await?;
-        }
-
-        let mut reader = self.reader.lock().await;
-        let mut buf = String::new();
-        loop {
-            buf.clear();
-            let n = reader.read_line(&mut buf).await?;
-            if n == 0 {
-                anyhow::bail!("mpv IPC connection closed");
-            }
-            if let Ok(val) = serde_json::from_str::<Value>(buf.trim()) {
-                if val.get("request_id").and_then(|v| v.as_u64()) == Some(id) {
-                    return Ok(());
-                }
-            }
-        }
-    }
-
-    /// Get current playback time in seconds
-    pub async fn get_time_pos(&self) -> f64 {
-        self.get_property("time-pos")
-            .await
-            .ok()
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0)
-    }
-
-    /// Get current track duration in seconds
-    pub async fn get_duration(&self) -> f64 {
-        self.get_property("duration")
-            .await
-            .ok()
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0)
-    }
-
-    pub async fn get_volume(&self) -> i64 {
-        self.get_property("volume")
-            .await
-            .ok()
-            .and_then(|v| v.as_f64())
-            .map(|v| v as i64)
+    pub fn get_volume(&self) -> i64 {
+        self.mpv
+            .get_property::<i64>("volume")
             .unwrap_or(80)
     }
 
-    pub async fn is_paused(&self) -> bool {
-        self.get_property("pause")
-            .await
-            .ok()
-            .and_then(|v| v.as_bool())
+    pub fn is_paused(&self) -> bool {
+        self.mpv.get_property::<bool>("pause").unwrap_or(true)
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.mpv
+            .get_property::<bool>("idle-active")
             .unwrap_or(true)
     }
 
-    pub async fn is_idle(&self) -> bool {
-        self.get_property("idle-active")
-            .await
-            .ok()
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true)
-    }
-
-    pub async fn shutdown(&mut self) {
-        let _ = self.command(&["quit"]).await;
-        let _ = self.process.kill().await;
+    pub fn shutdown(&self) {
+        let _ = self.mpv.command("quit", &[]);
         teardown_audio_routing(self.audio_routing);
-        let _ = std::fs::remove_file(&self.socket_path);
     }
 }
 

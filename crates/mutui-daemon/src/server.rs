@@ -24,10 +24,10 @@ pub struct Daemon {
 }
 
 impl Daemon {
-    pub async fn new() -> Result<Self> {
-        let mpv = MpvHandle::start().await?;
+    pub fn new() -> Result<Self> {
+        let mpv = MpvHandle::start()?;
         let volume = 80;
-        let _ = mpv.set_volume(volume).await;
+        let _ = mpv.set_volume(volume);
 
         Ok(Self {
             mpv,
@@ -58,9 +58,9 @@ impl Daemon {
         true
     }
 
-    pub async fn get_status(&self) -> DaemonStatus {
-        let idle = self.mpv.is_idle().await;
-        let paused = self.mpv.is_paused().await;
+    pub fn get_status(&self) -> DaemonStatus {
+        let idle = self.mpv.is_idle();
+        let paused = self.mpv.is_paused();
 
         let state = if idle || self.queue.is_empty() {
             PlayerState::Stopped
@@ -73,9 +73,9 @@ impl Daemon {
         DaemonStatus {
             state,
             current_track: self.queue.current_track().cloned(),
-            position: self.mpv.get_time_pos().await,
-            duration: self.mpv.get_duration().await,
-            volume: self.mpv.get_volume().await,
+            position: self.mpv.get_time_pos(),
+            duration: self.mpv.get_duration(),
+            volume: self.mpv.get_volume(),
             queue: self.queue.tracks(),
             queue_index: self.queue.current,
             autoplay_enabled: self.autoplay_enabled,
@@ -83,71 +83,71 @@ impl Daemon {
         }
     }
 
-    async fn play_current(&self) -> Result<()> {
+    fn play_current(&self) -> Result<()> {
         if let Some(track) = self.queue.current_track() {
             info!("Playing: {} - {}", track.title, track.artist);
-            self.mpv.loadfile(&track.url).await?;
-            self.mpv.play().await?;
+            self.mpv.loadfile(&track.url)?;
+            self.mpv.play()?;
         }
         Ok(())
     }
 
-    pub async fn handle_request(&mut self, req: Request) -> Response {
+    pub fn handle_request(&mut self, req: Request) -> Response {
         match req {
             Request::Play => {
                 if self.queue.current_track().is_some() {
-                    if let Err(e) = self.mpv.play().await {
+                    if let Err(e) = self.mpv.play() {
                         return Response::Error(e.to_string());
                     }
                 }
                 Response::Ok
             }
             Request::Pause => {
-                if let Err(e) = self.mpv.pause().await {
+                if let Err(e) = self.mpv.pause() {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok
             }
             Request::Toggle => {
-                if self.mpv.is_idle().await {
-                    if let Err(e) = self.play_current().await {
+                if self.mpv.is_idle() {
+                    if let Err(e) = self.play_current() {
                         return Response::Error(e.to_string());
                     }
-                } else if let Err(e) = self.mpv.toggle_pause().await {
+                } else if let Err(e) = self.mpv.toggle_pause() {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok
             }
             Request::Stop => {
-                if let Err(e) = self.mpv.stop().await {
+                if let Err(e) = self.mpv.stop() {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok
             }
             Request::Next => {
                 if self.queue.next() {
-                    if let Err(e) = self.play_current().await {
+                    if let Err(e) = self.play_current() {
                         return Response::Error(e.to_string());
                     }
                 } else if self.append_next_autoplay_track() && self.queue.next() {
-                    if let Err(e) = self.play_current().await {
+                    if let Err(e) = self.play_current() {
                         return Response::Error(e.to_string());
                     }
                 } else {
-                    let _ = self.mpv.stop().await;
+                    let _ = self.mpv.stop();
                 }
                 Response::Ok
             }
             Request::Previous => {
                 if self.queue.previous() {
-                    if let Err(e) = self.play_current().await {
+                    if let Err(e) = self.play_current() {
                         return Response::Error(e.to_string());
                     }
                 }
                 Response::Ok
             }
             Request::Seek(pos) => {
-                if let Err(e) = self.mpv.seek(pos).await {
+                if let Err(e) = self.mpv.seek(pos) {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok
@@ -155,7 +155,7 @@ impl Daemon {
             Request::SetVolume(vol) => {
                 let vol = vol.clamp(0, 150);
                 self.volume = vol;
-                if let Err(e) = self.mpv.set_volume(vol).await {
+                if let Err(e) = self.mpv.set_volume(vol) {
                     return Response::Error(e.to_string());
                 }
                 Response::Ok
@@ -164,7 +164,7 @@ impl Daemon {
                 let was_empty = self.queue.is_empty();
                 self.queue.add(track);
                 if was_empty {
-                    let _ = self.play_current().await;
+                    let _ = self.play_current();
                 }
                 Response::Ok
             }
@@ -172,7 +172,7 @@ impl Daemon {
                 let was_empty = self.queue.is_empty();
                 self.queue.insert_next(track);
                 if was_empty {
-                    let _ = self.play_current().await;
+                    let _ = self.play_current();
                 }
                 Response::Ok
             }
@@ -181,9 +181,9 @@ impl Daemon {
                 self.queue.remove(index);
                 if was_current {
                     if self.queue.is_empty() {
-                        let _ = self.mpv.stop().await;
+                        let _ = self.mpv.stop();
                     } else {
-                        let _ = self.play_current().await;
+                        let _ = self.play_current();
                     }
                 }
                 Response::Ok
@@ -191,7 +191,7 @@ impl Daemon {
             Request::ClearQueue => {
                 self.queue.clear();
                 self.autoplay_next_index = 0;
-                let _ = self.mpv.stop().await;
+                let _ = self.mpv.stop();
                 Response::Ok
             }
             Request::MoveInQueue { from, to } => {
@@ -200,19 +200,16 @@ impl Daemon {
             }
             Request::PlayIndex(idx) => {
                 if self.queue.set_index(idx) {
-                    if let Err(e) = self.play_current().await {
+                    if let Err(e) = self.play_current() {
                         return Response::Error(e.to_string());
                     }
                 }
                 Response::Ok
             }
-            Request::Search(query) => match search::search(&query, 15).await {
-                Ok(tracks) => {
-                    self.store_search_results(&tracks);
-                    Response::SearchResults(tracks)
-                }
-                Err(e) => Response::Error(e.to_string()),
-            },
+            Request::Search(_) => {
+                // Handled in handle_client to avoid blocking the daemon lock
+                Response::Error("Search should be handled by handle_client".into())
+            }
             Request::ToggleAutoplay => {
                 self.autoplay_enabled = !self.autoplay_enabled;
                 Response::Ok
@@ -237,12 +234,12 @@ impl Daemon {
                 Ok(pl) => {
                     self.queue.clear();
                     self.autoplay_next_index = 0;
-                    let _ = self.mpv.stop().await;
+                    let _ = self.mpv.stop();
                     for track in pl.tracks {
                         self.queue.add(track);
                     }
                     if !self.queue.is_empty() {
-                        let _ = self.play_current().await;
+                        let _ = self.play_current();
                     }
                     Response::Ok
                 }
@@ -262,7 +259,7 @@ impl Daemon {
                 Response::LibraryTracks(tracks)
             }
             Request::GetStatus => {
-                let status = self.get_status().await;
+                let status = self.get_status();
                 Response::Status(Box::new(status))
             }
             Request::Shutdown => Response::Ok,
@@ -277,15 +274,15 @@ pub async fn check_track_ended(daemon: &Arc<Mutex<Daemon>>) {
         return;
     }
 
-    let idle = d.mpv.is_idle().await;
+    let idle = d.mpv.is_idle();
     if idle && d.queue.current_track().is_some() {
         if d.queue.next() {
-            let _ = d.play_current().await;
+            let _ = d.play_current();
             return;
         }
 
         if d.append_next_autoplay_track() && d.queue.next() {
-            let _ = d.play_current().await;
+            let _ = d.play_current();
         }
     }
 }
@@ -385,12 +382,12 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                     let mut d = daemon.lock().await;
                     d.queue.clear();
                     d.autoplay_next_index = 0;
-                    let _ = d.mpv.stop().await;
+                    let _ = d.mpv.stop();
                     for track in pl.tracks {
                         d.queue.add(track);
                     }
                     if !d.queue.is_empty() {
-                        let _ = d.play_current().await;
+                        let _ = d.play_current();
                     }
                     Response::Ok
                 }
@@ -398,7 +395,7 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
             },
             other => {
                 let mut d = daemon.lock().await;
-                d.handle_request(other).await
+                d.handle_request(other)
             }
         };
 
@@ -412,11 +409,10 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
         if is_shutdown {
             info!("Shutdown requested, stopping mpv and exiting...");
             {
-                let mut d = daemon.lock().await;
-                d.mpv.shutdown().await;
+                let d = daemon.lock().await;
+                d.mpv.shutdown();
             }
             let _ = std::fs::remove_file(mutui_common::socket_path());
-            let _ = std::fs::remove_file(mutui_common::mpv_socket_path());
             std::process::exit(0);
         }
     }
