@@ -101,7 +101,6 @@ jobs:
             --license MIT \
             --depends "mpv-libs" \
             --rpm-summary "Lightweight YouTube Music terminal player" \
-            --rpm-recommends yt-dlp \
             --package "mutui-${{ steps.version.outputs.VERSION }}-1.x86_64.rpm" \
             target/release/mutui=/usr/bin/mutui \
             target/release/mutuid=/usr/bin/mutuid \
