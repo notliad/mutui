@@ -8,19 +8,18 @@
                               
 ```
 
-`mutui` is a lightweight terminal music player for Linux.
+`mutui` is a lightweight TUI music player for Linux.
 
-https://github.com/user-attachments/assets/5ba80a81-db08-4168-9a7a-47bb53afb577
+![ezgif-5c0563eb14a5c093](https://github.com/user-attachments/assets/6c67ee52-50e2-494e-8697-9a728143b1e1)
 
-It supports:
-- YouTube search and playback (`yt-dlp` + `mpv`)
-- Local music library folders (supports Artists & Albums)
-- Queue and playlists
-- Background playback
+Features:
+- YouTube search and playback;
+- Local music library folders (supports Artists & Albums);
+- Queue and playlists;
+- Background playback;
 
 ## Requirements
 
-- `mpv`
 - `yt-dlp`
 - Rust toolchain (`cargo`) to build
 
@@ -28,29 +27,18 @@ Install deps:
 
 ```bash
 # Arch Linux
-sudo pacman -S mpv yt-dlp
+sudo pacman -S yt-dlp
 
 # Ubuntu/Debian
-sudo apt install mpv yt-dlp
+sudo apt install yt-dlp
 
 # Fedora
-sudo dnf install mpv yt-dlp
+sudo dnf install yt-dlp
 ```
 
 ## Quick Start
 
-```bash
-cargo build --release
-./target/release/mutui
-```
-
-Notes:
-- `mutui` starts `mutuid` automatically if needed.
-- `q` closes only the TUI (music keeps playing).
-- `Q` shuts down daemon and stops playback.
-- Pulse loopback routing is disabled by default to avoid startup audio glitches. Enable it with `MUTUI_ENABLE_AUDIO_ROUTING=1 mutui` if you need the custom sink path.
-
-## Optional: Desktop Install
+Desktop Install
 
 ```bash
 chmod +x scripts/install-desktop-entry.sh
@@ -58,6 +46,13 @@ chmod +x scripts/install-desktop-entry.sh
 ```
 
 This installs binaries and a desktop entry in your user environment.
+
+or build yourself:
+
+```bash
+cargo build --release
+./target/release/mutui
+```
 
 ## Basic Usage
 
@@ -86,6 +81,10 @@ Global:
 
 - Library config: `~/.local/share/mutui/library.json`
 - Playlists: `~/.local/share/mutui/playlists/*.json`
+
+## Tech notes:
+- `mutui` starts `mutuid` automatically if needed.
+- Pulse loopback routing is disabled by default to avoid startup audio glitches. Enable it with `MUTUI_ENABLE_AUDIO_ROUTING=1 mutui` if you need the custom sink path.
 
 ## License
 
