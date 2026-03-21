@@ -77,6 +77,26 @@ pub enum PlaylistView {
     List,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HelpPopupPage {
+    #[default]
+    Shortcuts,
+    About,
+}
+
+impl HelpPopupPage {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Shortcuts => Self::About,
+            Self::About => Self::Shortcuts,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        self.next()
+    }
+}
+
 pub struct App {
     pub should_quit: bool,
     pub view: View,
@@ -117,6 +137,7 @@ pub struct App {
 
     // Help popup
     pub show_shortcuts_popup: bool,
+    pub help_popup_page: HelpPopupPage,
 
     // Confirm delete playlist popup
     pub playlist_delete_confirm_name: Option<String>,
@@ -165,6 +186,7 @@ impl App {
             notification_timer: 0,
             queue_selected: 0,
             show_shortcuts_popup: false,
+            help_popup_page: HelpPopupPage::default(),
             playlist_delete_confirm_name: None,
             library_delete_confirm_selected: None,
             library_folders: Vec::new(),

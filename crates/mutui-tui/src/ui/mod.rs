@@ -81,7 +81,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     player_bar::render(frame, app, chunks[2]);
 
     if app.show_shortcuts_popup {
-        render_shortcuts_popup(frame);
+        render_shortcuts_popup(frame, app);
     }
 }
 
@@ -133,13 +133,28 @@ fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-fn render_shortcuts_popup(frame: &mut Frame) {
+fn render_shortcuts_popup(frame: &mut Frame, app: &App) {
+    let (title, is_shortcuts) = match app.help_popup_page {
+        crate::app::HelpPopupPage::Shortcuts => (" Help - Shortcuts ", true),
+        crate::app::HelpPopupPage::About => (" Help - About ", false),
+    };
+
+    if is_shortcuts {
+        render_shortcuts_page(frame, title);
+    } else {
+        render_about_page(frame, title);
+    }
+}
+
+fn render_shortcuts_page(frame: &mut Frame, title: &str) {
     let area = centered_rect(72, 24, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
-        .title(" Help ")
-        .title_bottom(Line::from(" ? / Esc close ").fg(Color::DarkGray))
+        .title(title)
+        .title_bottom(
+            Line::from(" Tab/Shift+Tab: Shortcuts <-> About  ?/Esc close ").fg(Color::DarkGray),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray))
         .style(Style::default().bg(Color::Black));
@@ -189,6 +204,56 @@ fn render_shortcuts_popup(frame: &mut Frame) {
         .style(Style::default().fg(Color::Gray));
 
     frame.render_widget(table, area);
+}
+
+fn render_about_page(frame: &mut Frame, title: &str) {
+    let version = env!("CARGO_PKG_VERSION");
+    let license = option_env!("CARGO_PKG_LICENSE").unwrap_or("not specified");
+    let repository = "https://github.com/notliad/mutui";
+
+    let area = centered_rect(72, 16, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(title)
+        .title_bottom(
+            Line::from(" Tab/Shift+Tab: Shortcuts <-> About  ?/Esc close ").fg(Color::DarkGray),
+        )
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let text = vec![
+        Line::from(vec![
+            Span::styled("mutui", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!(" v{version}"),
+                Style::default().fg(Color::Gray),
+            ),
+        ]),
+        Line::from(""),
+        Line::from("Terminal client for the mutui music daemon."),
+        Line::from("Browse your library, search, manage playlists and queue playback."),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("License: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(license, Style::default().fg(Color::Gray)),
+        ]),
+        Line::from(vec![
+            Span::styled("Repo: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(repository, Style::default().fg(Color::LightBlue)),
+        ]),
+    ];
+
+    let paragraph = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .alignment(Alignment::Left)
+        .style(Style::default().fg(Color::Gray));
+
+    frame.render_widget(paragraph, inner);
 }
 
 fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App) {

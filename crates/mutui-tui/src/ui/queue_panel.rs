@@ -5,7 +5,6 @@ use ratatui::widgets::*;
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" Queue ")
-        .title_bottom(Line::from("* auto").fg(Color::LightBlue))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
     let inner = block.inner(area);

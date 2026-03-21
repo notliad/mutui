@@ -3,7 +3,7 @@ mod client;
 mod ui;
 
 use anyhow::Result;
-use app::{App, InputMode, LibraryMode, PlaylistView, View};
+use app::{App, HelpPopupPage, InputMode, LibraryMode, PlaylistView, View};
 use client::DaemonClient;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use mutui_common::{Playlist, Request, Response};
@@ -204,6 +204,13 @@ async fn handle_key(
         match key.code {
             KeyCode::Char('?') | KeyCode::Esc => {
                 app.show_shortcuts_popup = false;
+                app.help_popup_page = HelpPopupPage::Shortcuts;
+            }
+            KeyCode::Tab => {
+                app.help_popup_page = app.help_popup_page.next();
+            }
+            KeyCode::BackTab => {
+                app.help_popup_page = app.help_popup_page.prev();
             }
             _ => {}
         }
@@ -239,7 +246,10 @@ async fn handle_key(
             let _ = daemon.send(&Request::Shutdown).await;
             app.should_quit = true;
         }
-        KeyCode::Char('?') => app.show_shortcuts_popup = true,
+        KeyCode::Char('?') => {
+            app.show_shortcuts_popup = true;
+            app.help_popup_page = HelpPopupPage::Shortcuts;
+        }
 
         // Tab navigation
         KeyCode::Tab => {
