@@ -206,7 +206,11 @@ impl Daemon {
                 }
                 Response::Ok
             }
-            Request::Search(_) => {
+            Request::Search(_)
+            | Request::SearchPlaylists(_)
+            | Request::GetYoutubePlaylistTracks(_)
+            | Request::LoadYoutubePlaylist(_)
+            | Request::AddYoutubePlaylistToQueue(_) => {
                 // Handled in handle_client to avoid blocking the daemon lock
                 Response::Error("Search should be handled by handle_client".into())
             }
@@ -348,6 +352,54 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                 }
                 Err(e) => Response::Error(e.to_string()),
             },
+            Request::SearchPlaylists(query) => match search::search_playlists(&query, 15).await {
+                Ok(playlists) => Response::SearchResults(playlists),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::GetYoutubePlaylistTracks(url_or_id) => {
+                match search::load_youtube_playlist(&url_or_id, 500).await {
+                    Ok(tracks) => Response::SearchResults(tracks),
+                    Err(e) => Response::Error(e.to_string()),
+                }
+            }
+            Request::LoadYoutubePlaylist(url_or_id) => {
+                match search::load_youtube_playlist(&url_or_id, 500).await {
+                    Ok(tracks) => {
+                        let mut d = daemon.lock().await;
+                        d.queue.clear();
+                        d.autoplay_next_index = 0;
+                        let _ = d.mpv.stop();
+                        for track in tracks {
+                            d.queue.add(track);
+                        }
+                        if !d.queue.is_empty() {
+                            let _ = d.play_current();
+                        }
+                        Response::Ok
+                    }
+                    Err(e) => Response::Error(e.to_string()),
+                }
+            }
+            Request::AddYoutubePlaylistToQueue(url_or_id) => {
+                match search::load_youtube_playlist(&url_or_id, 500).await {
+                    Ok(tracks) => {
+                        if tracks.is_empty() {
+                            Response::Error("Playlist has no tracks".to_string())
+                        } else {
+                            let mut d = daemon.lock().await;
+                            let was_empty = d.queue.is_empty();
+                            for track in tracks {
+                                d.queue.add(track);
+                            }
+                            if was_empty {
+                                let _ = d.play_current();
+                            }
+                            Response::Ok
+                        }
+                    }
+                    Err(e) => Response::Error(e.to_string()),
+                }
+            }
             Request::ListPlaylists => match playlist::list() {
                 Ok(names) => Response::Playlists(names),
                 Err(e) => Response::Error(e.to_string()),

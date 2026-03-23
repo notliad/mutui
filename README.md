@@ -61,8 +61,12 @@ cargo build --release
 
 Search tab:
 - `/`: type query
-- `Enter`: play selected result
-- `a`: add selected result to queue
+- `Enter`: run one search that returns tracks (top) and playlists (bottom)
+- `Ctrl+J` / `Ctrl+K`: jump between track and playlist sections
+- `j` / `k`: navigate inside current section (crosses sections naturally at boundaries)
+- `Enter`/`->`/`l`: play selected track, or open/close selected playlist as a folder
+- `<-`/`h`: close selected opened playlist folder
+- `a`: add selected track result to queue, or add all tracks from selected playlist (as individual queue tracks)
 
 Library tab:
 - `f`: add folder to local library (use absolute path, ex: `/home/user/Music`)

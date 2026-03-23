@@ -3,7 +3,7 @@ mod client;
 mod ui;
 
 use anyhow::Result;
-use app::{App, HelpPopupPage, InputMode, LibraryMode, PlaylistView, View};
+use app::{App, HelpPopupPage, InputMode, LibraryMode, PlaylistView, SearchSection, View};
 use client::DaemonClient;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use mutui_common::{Playlist, Request, Response};
@@ -46,7 +46,8 @@ async fn run(
     daemon: &mut DaemonClient,
 ) -> Result<()> {
     let mut app = App::new();
-    let mut search_task: Option<JoinHandle<anyhow::Result<Response>>> = None;
+    let mut search_task: Option<JoinHandle<anyhow::Result<(Response, Response)>>> = None;
+    let mut playlist_tracks_task: Option<JoinHandle<anyhow::Result<(String, Response)>>> = None;
 
     // Initial status fetch
     if let Ok(Response::Status(status)) = daemon.send(&Request::GetStatus).await {
@@ -75,14 +76,42 @@ async fn run(
         {
             if let Some(task) = search_task.take() {
                 match task.await {
-                    Ok(Ok(Response::SearchResults(results))) => {
-                        app.search_results = results;
-                        app.search_selected = 0;
+                    Ok(Ok((tracks_resp, playlists_resp))) => {
+                        match tracks_resp {
+                            Response::SearchResults(results) => {
+                                app.search_results = results;
+                                app.search_selected = 0;
+                            }
+                            Response::Error(e) => app.notify(format!("Search tracks error: {e}")),
+                            _ => {}
+                        }
+
+                        match playlists_resp {
+                            Response::SearchResults(results) => {
+                                app.search_playlist_results = results;
+                                app.search_playlist_selected = 0;
+                            }
+                            Response::Error(e) => {
+                                app.notify(format!("Search playlists error: {e}"))
+                            }
+                            _ => {}
+                        }
+
+                        if app.search_section == SearchSection::Tracks
+                            && app.search_results.is_empty()
+                            && !app.search_playlist_results.is_empty()
+                        {
+                            app.search_section = SearchSection::Playlists;
+                        }
+
+                        app.search_playlist_expanded = false;
+                        app.search_playlist_loading = false;
+                        app.pending_search_playlist_url = None;
+                        app.pending_search_playlist_id = None;
+                        app.search_playlist_track_focus = false;
+                        app.search_playlist_track_selected = 0;
+                        app.search_playlist_tracks.clear();
                     }
-                    Ok(Ok(Response::Error(e))) => {
-                        app.notify(format!("Search error: {e}"));
-                    }
-                    Ok(Ok(_)) => {}
                     Ok(Err(e)) => {
                         app.notify(format!("Search error: {e}"));
                     }
@@ -94,10 +123,73 @@ async fn run(
             }
         }
 
+        if playlist_tracks_task
+            .as_ref()
+            .map(|task| task.is_finished())
+            .unwrap_or(false)
+        {
+            if let Some(task) = playlist_tracks_task.take() {
+                app.search_playlist_loading = false;
+                match task.await {
+                    Ok(Ok((playlist_id, Response::SearchResults(tracks)))) => {
+                        let selected_same_playlist = app
+                            .selected_search_playlist()
+                            .map(|p| p.id == playlist_id)
+                            .unwrap_or(false);
+
+                        if app.search_playlist_expanded && selected_same_playlist {
+                            app.search_playlist_tracks = tracks.clone();
+                            app.search_playlist_track_selected = app
+                                .search_playlist_track_selected
+                                .min(app.search_playlist_tracks.len().saturating_sub(1));
+                        }
+
+                        if let Some(pl) = app
+                            .search_playlist_results
+                            .iter_mut()
+                            .find(|p| p.id == playlist_id)
+                        {
+                            if (pl.artist.trim().is_empty() || pl.artist == "Unknown")
+                                && !tracks.is_empty()
+                            {
+                                pl.artist = tracks[0].artist.clone();
+                            }
+                            pl.album = Some(format!("youtube-playlist:{}", tracks.len()));
+                        }
+                    }
+                    Ok(Ok((_, Response::Error(e)))) => {
+                        app.notify(format!("Failed to load playlist tracks: {e}"));
+                    }
+                    Ok(Ok(_)) => {}
+                    Ok(Err(e)) => {
+                        app.notify(format!("Failed to load playlist tracks: {e}"));
+                    }
+                    Err(e) => {
+                        app.notify(format!("Playlist load task failed: {e}"));
+                    }
+                }
+            }
+        }
+
         if search_task.is_none() {
             if let Some(query) = app.pending_search_query.take() {
                 search_task = Some(tokio::spawn(async move {
-                    crate::client::send_once(Request::Search(query)).await
+                    let tracks = crate::client::send_once(Request::Search(query.clone())).await?;
+                    let playlists = crate::client::send_once(Request::SearchPlaylists(query)).await?;
+                    Ok((tracks, playlists))
+                }));
+            }
+        }
+
+        if playlist_tracks_task.is_none() {
+            if let (Some(url), Some(id)) = (
+                app.pending_search_playlist_url.take(),
+                app.pending_search_playlist_id.take(),
+            ) {
+                app.search_playlist_loading = true;
+                playlist_tracks_task = Some(tokio::spawn(async move {
+                    let resp = crate::client::send_once(Request::GetYoutubePlaylistTracks(url)).await?;
+                    Ok((id, resp))
                 }));
             }
         }
@@ -407,46 +499,208 @@ async fn handle_search_normal(
     daemon: &mut DaemonClient,
     key: event::KeyEvent,
 ) -> Result<()> {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+
     match key.code {
         KeyCode::Char('/') => {
             app.input_mode = InputMode::Search;
             app.search_selection_anchor = None;
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::Char('j') if ctrl => {
+            if !app.search_playlist_results.is_empty() {
+                app.search_section = SearchSection::Playlists;
+            }
+        }
+        KeyCode::Char('k') if ctrl => {
             if !app.search_results.is_empty() {
-                app.search_selected =
-                    (app.search_selected + 1).min(app.search_results.len() - 1);
+                app.search_section = SearchSection::Tracks;
+                app.search_playlist_track_focus = false;
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            match app.search_section {
+                SearchSection::Tracks => {
+                    if !app.search_results.is_empty() {
+                        if app.search_selected + 1 < app.search_results.len() {
+                            app.search_selected += 1;
+                        } else if !app.search_playlist_results.is_empty() {
+                            app.search_section = SearchSection::Playlists;
+                        }
+                    } else if !app.search_playlist_results.is_empty() {
+                        app.search_section = SearchSection::Playlists;
+                    }
+                }
+                SearchSection::Playlists => {
+                    if app.search_playlist_expanded && app.search_playlist_track_focus {
+                        if app.search_playlist_track_selected + 1 < app.search_playlist_tracks.len() {
+                            app.search_playlist_track_selected += 1;
+                        } else if app.search_playlist_selected + 1 < app.search_playlist_results.len() {
+                            app.search_playlist_track_focus = false;
+                            app.search_playlist_selected += 1;
+                            app.search_playlist_track_selected = 0;
+                            app.search_playlist_expanded = false;
+                            refresh_selected_search_playlist(app);
+                        }
+                    } else if app.search_playlist_expanded && !app.search_playlist_tracks.is_empty() {
+                        app.search_playlist_track_focus = true;
+                        app.search_playlist_track_selected = 0;
+                    } else if app.search_playlist_selected + 1 < app.search_playlist_results.len() {
+                        app.search_playlist_selected += 1;
+                        app.search_playlist_track_selected = 0;
+                        app.search_playlist_expanded = false;
+                        refresh_selected_search_playlist(app);
+                    }
+                }
             }
         }
         KeyCode::Up | KeyCode::Char('k') => {
-            app.search_selected = app.search_selected.saturating_sub(1);
+            match app.search_section {
+                SearchSection::Tracks => {
+                    app.search_selected = app.search_selected.saturating_sub(1);
+                }
+                SearchSection::Playlists => {
+                    if app.search_playlist_track_focus {
+                        if app.search_playlist_track_selected > 0 {
+                            app.search_playlist_track_selected -= 1;
+                        } else {
+                            app.search_playlist_track_focus = false;
+                        }
+                    } else if app.search_playlist_selected > 0 {
+                        app.search_playlist_selected -= 1;
+                        app.search_playlist_track_selected = 0;
+                        app.search_playlist_expanded = false;
+                        refresh_selected_search_playlist(app);
+                    } else if !app.search_results.is_empty() {
+                        app.search_section = SearchSection::Tracks;
+                        app.search_selected = app.search_results.len().saturating_sub(1);
+                    }
+                }
+            }
         }
         KeyCode::Enter => {
-            // Play selected track immediately
-            if let Some(track) = app.selected_search_track().cloned() {
-                if app.status.queue.is_empty() {
-                    // First track: add and let daemon auto-start playback.
-                    let _ = daemon.send(&Request::AddToQueue(track)).await;
-                } else {
-                    // Non-empty queue: insert after current and jump to it.
-                    let target = (app.status.queue_index + 1).min(app.status.queue.len());
-                    let _ = daemon.send(&Request::InsertNext(track)).await;
-                    let _ = daemon.send(&Request::PlayIndex(target)).await;
+            match app.search_section {
+                SearchSection::Tracks => {
+                    if let Some(track) = app.selected_search_track().cloned() {
+                        if app.status.queue.is_empty() {
+                            let _ = daemon.send(&Request::AddToQueue(track)).await;
+                        } else {
+                            let target = (app.status.queue_index + 1).min(app.status.queue.len());
+                            let _ = daemon.send(&Request::InsertNext(track)).await;
+                            let _ = daemon.send(&Request::PlayIndex(target)).await;
+                        }
+                        app.notify("Playing now!");
+                    }
                 }
-                app.notify("Playing now!");
+                SearchSection::Playlists => {
+                    if app.search_playlist_expanded && app.search_playlist_track_focus {
+                        if let Some(track) = app
+                            .search_playlist_tracks
+                            .get(app.search_playlist_track_selected)
+                            .cloned()
+                        {
+                            play_or_queue_now(app, daemon, track).await;
+                            app.notify("Playing now!");
+                        }
+                    } else {
+                        app.search_playlist_expanded = !app.search_playlist_expanded;
+                        app.search_playlist_track_focus = false;
+                        app.search_playlist_track_selected = 0;
+                        refresh_selected_search_playlist(app);
+                    }
+                }
+            }
+        }
+        KeyCode::Right | KeyCode::Char('l') => {
+            if app.search_section == SearchSection::Playlists {
+                if app.search_playlist_expanded && app.search_playlist_track_focus {
+                    if let Some(track) = app
+                        .search_playlist_tracks
+                        .get(app.search_playlist_track_selected)
+                        .cloned()
+                    {
+                        play_or_queue_now(app, daemon, track).await;
+                        app.notify("Playing now!");
+                    }
+                } else if !app.search_playlist_expanded {
+                    app.search_playlist_expanded = true;
+                    app.search_playlist_track_focus = false;
+                    app.search_playlist_track_selected = 0;
+                    refresh_selected_search_playlist(app);
+                }
+            }
+        }
+        KeyCode::Left | KeyCode::Char('h') => {
+            if app.search_section == SearchSection::Playlists && app.search_playlist_expanded {
+                app.search_playlist_expanded = false;
+                app.search_playlist_track_focus = false;
+                app.search_playlist_track_selected = 0;
+                refresh_selected_search_playlist(app);
             }
         }
         KeyCode::Char('a') => {
-            // Add to queue
-            if let Some(track) = app.selected_search_track().cloned() {
-                let name = track.title.clone();
-                let _ = daemon.send(&Request::AddToQueue(track)).await;
-                app.notify(format!("Added to queue: {name}"));
+            match app.search_section {
+                SearchSection::Tracks => {
+                    if let Some(track) = app.selected_search_track().cloned() {
+                        let name = track.title.clone();
+                        let _ = daemon.send(&Request::AddToQueue(track)).await;
+                        app.notify(format!("Added to queue: {name}"));
+                    }
+                }
+                SearchSection::Playlists => {
+                    if app.search_playlist_expanded && app.search_playlist_track_focus {
+                        if let Some(track) = app
+                            .search_playlist_tracks
+                            .get(app.search_playlist_track_selected)
+                            .cloned()
+                        {
+                            let name = track.title.clone();
+                            let _ = daemon.send(&Request::AddToQueue(track)).await;
+                            app.notify(format!("Added to queue: {name}"));
+                        }
+                    } else if let Some(playlist) = app.selected_search_playlist().cloned() {
+                        let playlist_name = playlist.title.clone();
+                        match daemon
+                            .send(&Request::AddYoutubePlaylistToQueue(playlist.url.clone()))
+                            .await
+                        {
+                            Ok(Response::Ok) => {
+                                app.notify(format!("Playlist added to queue: {playlist_name}"));
+                            }
+                            Ok(Response::Error(e)) => {
+                                app.notify(format!("Failed to add playlist: {e}"));
+                            }
+                            Ok(_) => {}
+                            Err(e) => app.notify(format!("Failed to add playlist: {e}")),
+                        }
+                    }
+                }
             }
         }
         _ => {}
     }
     Ok(())
+}
+
+fn refresh_selected_search_playlist(app: &mut App) {
+    if !app.search_playlist_expanded {
+        app.search_playlist_loading = false;
+        app.pending_search_playlist_url = None;
+        app.pending_search_playlist_id = None;
+        app.search_playlist_tracks.clear();
+        app.search_playlist_track_selected = 0;
+        app.search_playlist_track_focus = false;
+        return;
+    }
+
+    app.search_playlist_tracks.clear();
+    app.search_playlist_track_selected = 0;
+    app.search_playlist_track_focus = false;
+
+    if let Some(playlist) = app.selected_search_playlist().cloned() {
+        app.search_playlist_loading = true;
+        app.pending_search_playlist_url = Some(playlist.url.clone());
+        app.pending_search_playlist_id = Some(playlist.id.clone());
+    }
 }
 
 async fn handle_search_input(

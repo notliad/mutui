@@ -1,4 +1,4 @@
-use crate::app::{App, InputMode};
+use crate::app::{App, InputMode, SearchSection};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
@@ -37,7 +37,7 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect) {
     let mut line: Vec<Span<'static>> = Vec::new();
 
     if app.search_input.is_empty() && app.input_mode != InputMode::Search {
-        line.push(Span::raw("  Press / to search..."));
+        line.push(Span::raw("  Press / to search  "));
     } else {
         line.push(Span::raw("  "));
         if let Some((start, end)) = search_selection_range(app) {
@@ -96,23 +96,35 @@ fn search_selection_range(app: &App) -> Option<(usize, usize)> {
 }
 
 fn render_results(frame: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+        .split(area);
+
+    render_track_results(frame, app, chunks[0]);
+    render_playlist_results(frame, app, chunks[1]);
+}
+
+fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
     if app.search_results.is_empty() {
         let help = if app.searching {
-            "Searching..."
+            "Searching tracks..."
         } else if app.search_input.is_empty() {
-            "Use / to start a search"
+            "Tracks results"
         } else {
-            "No results found"
+            "No track results"
         };
-
         let p = Paragraph::new(help)
             .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
-                        .title(" Results "),
+                    .border_style(Style::default().fg(if app.search_section == SearchSection::Tracks {
+                        Color::Cyan
+                    } else {
+                        Color::DarkGray
+                    }))
+                    .title(" Results "),
             );
         frame.render_widget(p, area);
         return;
@@ -132,27 +144,30 @@ fn render_results(frame: &mut Frame, app: &App, area: Rect) {
                 })
                 .unwrap_or_default();
 
-            let content = Line::from(vec![
-                Span::styled(
-                    format!("{:2}. ", i + 1),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(&track.title, Style::default().fg(Color::White)),
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{:2}. ", i + 1), Style::default().fg(Color::DarkGray)),
+                Span::styled(track.title.as_str(), Style::default().fg(Color::White)),
                 Span::raw(" "),
-                Span::styled(&track.artist, Style::default().fg(Color::DarkGray)),
+                Span::styled(track.artist.as_str(), Style::default().fg(Color::DarkGray)),
                 Span::raw("  "),
                 Span::styled(duration, Style::default().fg(Color::DarkGray)),
-            ]);
-
-            ListItem::new(content)
+            ]))
         })
         .collect();
 
+    let mut state = ListState::default().with_selected(Some(app.search_selected));
+    if app.search_section != SearchSection::Tracks {
+        state.select(None);
+    }
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray))
+                .border_style(Style::default().fg(if app.search_section == SearchSection::Tracks {
+                    Color::Cyan
+                } else {
+                    Color::DarkGray
+                }))
                 .title(" Results "),
         )
         .highlight_style(
@@ -162,7 +177,142 @@ fn render_results(frame: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
+    frame.render_stateful_widget(list, area, &mut state);
+}
 
-    let mut state = ListState::default().with_selected(Some(app.search_selected));
+fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
+    if app.search_playlist_results.is_empty() {
+        let help = if app.searching {
+            "Searching playlists..."
+        } else if app.search_input.is_empty() {
+            "Playlist results"
+        } else {
+            "No playlist results"
+        };
+        let p = Paragraph::new(help)
+            .style(Style::default().fg(Color::DarkGray))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(if app.search_section == SearchSection::Playlists {
+                        Color::Cyan
+                    } else {
+                        Color::DarkGray
+                    }))
+                    .title(" Playlists "),
+            );
+        frame.render_widget(p, area);
+        return;
+    }
+
+    let mut items: Vec<ListItem> = Vec::new();
+    let mut selected_row = app.search_playlist_selected;
+
+    for (i, playlist) in app.search_playlist_results.iter().enumerate() {
+        let songs = playlist
+            .album
+            .as_deref()
+            .and_then(|album| album.strip_prefix("youtube-playlist:"))
+            .and_then(|count| count.parse::<u64>().ok())
+            .map(|count| format!("{count} songs"))
+            .unwrap_or_else(|| "songs: ?".to_string());
+
+        let folder_prefix = if i == app.search_playlist_selected && app.search_playlist_expanded {
+            "▾"
+        } else {
+            "▸"
+        };
+
+        let is_active_selection =
+            app.search_section == SearchSection::Playlists && i == app.search_playlist_selected;
+
+        let folder_line = Line::from(vec![
+            Span::styled(
+                format!("{folder_prefix} {:2}. ", i + 1),
+                Style::default().fg(if is_active_selection {
+                    Color::Cyan
+                } else {
+                    Color::DarkGray
+                }),
+            ),
+            Span::styled(
+                playlist.title.as_str(),
+                if is_active_selection {
+                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Gray)
+                },
+            ),
+            Span::raw("  "),
+            Span::styled("owner: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(playlist.artist.as_str(), Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled(songs, Style::default().fg(Color::DarkGray)),
+        ]);
+        items.push(ListItem::new(folder_line));
+
+        if i == app.search_playlist_selected && app.search_playlist_expanded {
+            if app.search_playlist_loading {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("    └─ ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("loading tracks...", Style::default().fg(Color::Yellow)),
+                ])));
+            }
+
+            for (t_idx, track) in app.search_playlist_tracks.iter().enumerate() {
+                let duration = track
+                    .duration
+                    .map(|d| {
+                        let m = d as u64 / 60;
+                        let s = d as u64 % 60;
+                        format!("{m}:{s:02}")
+                    })
+                    .unwrap_or_default();
+
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("    └─ ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        track.title.as_str(),
+                        if app.search_playlist_track_focus
+                            && app.search_playlist_track_selected == t_idx
+                        {
+                            Style::default().fg(Color::Yellow)
+                        } else {
+                            Style::default().fg(Color::White)
+                        },
+                    ),
+                    Span::styled("  ", Style::default()),
+                    Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                ])));
+            }
+
+            if app.search_playlist_track_focus {
+                selected_row = app.search_playlist_selected + 1 + app.search_playlist_track_selected;
+            }
+        }
+    }
+
+    let mut state = ListState::default().with_selected(Some(selected_row));
+    if app.search_section != SearchSection::Playlists {
+        state.select(None);
+    }
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(if app.search_section == SearchSection::Playlists {
+                    Color::Cyan
+                } else {
+                    Color::DarkGray
+                }))
+                .title(" Playlists "),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▸ ");
     frame.render_stateful_widget(list, area, &mut state);
 }

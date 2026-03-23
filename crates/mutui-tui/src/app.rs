@@ -78,6 +78,13 @@ pub enum PlaylistView {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SearchSection {
+    #[default]
+    Tracks,
+    Playlists,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HelpPopupPage {
     #[default]
     Shortcuts,
@@ -109,8 +116,18 @@ pub struct App {
     pub search_input: String,
     pub search_cursor: usize,
     pub search_selection_anchor: Option<usize>,
+    pub search_section: SearchSection,
     pub search_results: Vec<Track>,
     pub search_selected: usize,
+    pub search_playlist_results: Vec<Track>,
+    pub search_playlist_selected: usize,
+    pub search_playlist_expanded: bool,
+    pub search_playlist_loading: bool,
+    pub pending_search_playlist_url: Option<String>,
+    pub pending_search_playlist_id: Option<String>,
+    pub search_playlist_tracks: Vec<Track>,
+    pub search_playlist_track_selected: usize,
+    pub search_playlist_track_focus: bool,
     pub searching: bool,
     pub pending_search_query: Option<String>,
     pub search_spinner_frame: u8,
@@ -168,8 +185,18 @@ impl App {
             search_input: String::new(),
             search_cursor: 0,
             search_selection_anchor: None,
+            search_section: SearchSection::Tracks,
             search_results: Vec::new(),
             search_selected: 0,
+            search_playlist_results: Vec::new(),
+            search_playlist_selected: 0,
+            search_playlist_expanded: false,
+            search_playlist_loading: false,
+            pending_search_playlist_url: None,
+            pending_search_playlist_id: None,
+            search_playlist_tracks: Vec::new(),
+            search_playlist_track_selected: 0,
+            search_playlist_track_focus: false,
             searching: false,
             pending_search_query: None,
             search_spinner_frame: 0,
@@ -219,6 +246,11 @@ impl App {
 
     pub fn selected_search_track(&self) -> Option<&Track> {
         self.search_results.get(self.search_selected)
+    }
+
+    pub fn selected_search_playlist(&self) -> Option<&Track> {
+        self.search_playlist_results
+            .get(self.search_playlist_selected)
     }
 
     pub fn selected_queue_track(&self) -> Option<usize> {

@@ -82,6 +82,10 @@ pub enum Request {
 
     // Search
     Search(String),
+    SearchPlaylists(String),
+    GetYoutubePlaylistTracks(String),
+    LoadYoutubePlaylist(String),
+    AddYoutubePlaylistToQueue(String),
     ToggleAutoplay,
 
     // Playlists
