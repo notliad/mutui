@@ -37,7 +37,7 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect) {
     let mut line: Vec<Span<'static>> = Vec::new();
 
     if app.search_input.is_empty() && app.input_mode != InputMode::Search {
-        line.push(Span::raw("  Press / to search  "));
+        line.push(Span::raw("  Search for tracks, artists and playlists..."));
     } else {
         line.push(Span::raw("  "));
         if let Some((start, end)) = search_selection_range(app) {
