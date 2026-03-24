@@ -1,21 +1,12 @@
-```
-                  _         _ 
-                 | |       (_)
-  _ __ ___  _   _| |_ _   _ _ 
- | '_ ` _ \| | | | __| | | | |
- | | | | | | |_| | |_| |_| | |
- |_| |_| |_|\__,_|\__|\__,_|_|
-                              
-```
+# mutui
+`mutui` is a lightweight terminal based music player for Linux.
 
-`mutui` is a lightweight TUI music player for Linux.
-
-![ezgif-5c0563eb14a5c093](https://github.com/user-attachments/assets/6c67ee52-50e2-494e-8697-9a728143b1e1)
+![mutui](https://github.com/user-attachments/assets/e3ebdd86-3bad-42f4-a6a4-04a876d434ed)
 
 Features:
-- YouTube search and playback;
+- Search tracks and playlists on Youtube;
 - Local music library folders (supports Artists & Albums);
-- Queue and playlists;
+- Queue and local playlists;
 - Background playback;
 
 ## Requirements
@@ -63,10 +54,10 @@ Search tab:
 - `/`: type query
 - `Enter`: run one search that returns tracks (top) and playlists (bottom)
 - `Ctrl+J` / `Ctrl+K`: jump between track and playlist sections
-- `j` / `k`: navigate inside current section (crosses sections naturally at boundaries)
+- `j` / `k`: navigate inside current section or jump to next/previous section
 - `Enter`/`->`/`l`: play selected track, or open/close selected playlist as a folder
 - `<-`/`h`: close selected opened playlist folder
-- `a`: add selected track result to queue, or add all tracks from selected playlist (as individual queue tracks)
+- `a`: add selected track result to queue, or add all tracks from selected playlist
 
 Library tab:
 - `f`: add folder to local library (use absolute path, ex: `/home/user/Music`)
