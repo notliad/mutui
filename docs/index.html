@@ -3,402 +3,474 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>mutui | Terminal Music Player</title>
+    <title>mutui — the music player your RAM won't hate</title>
     <meta
       name="description"
-      content="mutui: a lightweight Linux terminal music player with YouTube search and local library support."
+      content="mutui: lightweight Linux terminal music player. YouTube search, local library, background playback. Uses less RAM than this sentence."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=VT323&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap"
       rel="stylesheet"
     />
     <style>
       :root {
-        --bg: #04110a;
-        --bg-2: #071a11;
-        --panel: #0b2116;
-        --line: #1f4f37;
-        --text: #d8ffe9;
-        --muted: #7ec8a0;
-        --accent: #56f09e;
-        --accent-2: #8cff4d;
-        --warn: #f6d365;
-        --shadow: 0 24px 50px rgba(0, 0, 0, 0.45);
+        --bg: #071515;
+        --surface: #0e2323;
+        --border: #1b4545;
+        --border-strong: #2ddcdc;
+        --cyan: #53ffff;
+        --accent: #20b8b8;
+        --accent-dark: #178f8f;
+        --text: #d8ffff;
+        --muted: #9ed6d6;
+        --faint: #63a0a0;
+        --good: #53d3a9;
+        --warn: #ff9b4a;
+        --bad: #ff6b57;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-      }
+      html { scroll-behavior: smooth; }
 
       body {
-        font-family: "IBM Plex Mono", monospace;
-        background:
-          radial-gradient(circle at 12% 0%, rgba(27, 75, 50, 0.2), transparent 42%),
-          radial-gradient(circle at 90% 100%, rgba(69, 125, 39, 0.14), transparent 36%),
-          linear-gradient(160deg, var(--bg) 0%, var(--bg-2) 54%, #020704 100%);
+        font-family: "DM Mono", monospace;
+        background-color: var(--bg);
         color: var(--text);
         min-height: 100vh;
-        line-height: 1.5;
-      }
-
-      body::before,
-      body::after {
-        content: "";
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
+        font-size: 15px;
+        line-height: 1.65;
       }
 
       body::before {
-        background-image: linear-gradient(rgba(86, 240, 158, 0.07) 1px, transparent 1px);
-        background-size: 100% 4px;
-        opacity: 0.35;
-      }
-
-      body::after {
-        background: radial-gradient(circle at center, transparent 38%, rgba(0, 0, 0, 0.34) 100%);
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 44px 44px;
+        opacity: 0.2;
+        pointer-events: none;
+        z-index: 0;
       }
 
       .page {
-        width: min(1120px, 94vw);
+        max-width: 760px;
         margin: 0 auto;
-        padding: 2rem 0 3.2rem;
+        padding: 3rem 1.5rem 4rem;
+        position: relative;
+        z-index: 1;
       }
 
-      .shell {
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        background: linear-gradient(180deg, rgba(10, 32, 21, 0.94), rgba(6, 19, 13, 0.96));
-        box-shadow: var(--shadow);
-        overflow: hidden;
-      }
+      /* ── Header ─────────────────────────── */
 
-      .shell-top {
+      .site-header {
         display: flex;
-        align-items: center;
+        align-items: baseline;
         justify-content: space-between;
+        padding-bottom: 1.4rem;
+        border-bottom: 2px solid var(--border-strong);
+        margin-bottom: 3.2rem;
         gap: 1rem;
-        padding: 0.65rem 1rem;
-        border-bottom: 1px solid var(--line);
-        background: rgba(4, 13, 8, 0.75);
+        flex-wrap: wrap;
       }
 
-      .lights {
-        display: inline-flex;
-        gap: 0.42rem;
+      .logo {
+        font-family: "Silkscreen", monospace;
+        font-size: 1.55rem;
+        color: var(--accent);
+        letter-spacing: 0.06em;
       }
 
-      .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
+      .logo-cursor {
+        color: var(--cyan);
+        animation: blink 1s steps(1) infinite;
       }
 
-      .dot-red {
-        background: #ef6f6c;
+      .nav {
+        display: flex;
+        gap: 1.2rem;
+        list-style: none;
       }
 
-      .dot-yellow {
-        background: #f6d365;
-      }
-
-      .dot-green {
-        background: #56f09e;
-      }
-
-      .shell-title {
+      .nav a {
         color: var(--muted);
-        font-size: 0.8rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .repo-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        color: var(--text);
         text-decoration: none;
-        padding: 0.35rem 0.65rem;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        background: rgba(9, 30, 20, 0.7);
-        transition: border-color 0.2s ease, transform 0.2s ease;
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-size: 0.83rem;
+        border-bottom: 1px solid transparent;
+        transition: color 0.15s, border-color 0.15s;
       }
 
-      .repo-link:hover {
-        border-color: var(--accent);
-        transform: translateY(-2px);
+      .nav a:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
       }
 
-      .shell-body {
-        padding: clamp(1rem, 2.5vw, 2rem);
-      }
-
-      .prompt {
-        color: var(--accent-2);
-        font-size: 0.9rem;
-        margin-bottom: 0.55rem;
-      }
+      /* ── Hero ───────────────────────────── */
 
       .hero {
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: rgba(8, 28, 18, 0.7);
-        padding: clamp(1rem, 3vw, 1.8rem);
+        margin-bottom: 3.5rem;
+      }
+
+      .hero-eyebrow {
+        font-size: 0.76rem;
+        color: var(--faint);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin-bottom: 1rem;
       }
 
       h1 {
-        margin: 0;
-        font-family: "VT323", monospace;
-        font-size: clamp(2rem, 6.5vw, 4.8rem);
-        line-height: 0.95;
+        font-family: "Silkscreen", monospace;
+        font-size: clamp(1.7rem, 4.8vw, 3rem);
+        line-height: 1.15;
         font-weight: 400;
-        color: var(--accent);
-      }
-
-      .tagline {
-        font-size: clamp(0.94rem, 1.8vw, 1.08rem);
         color: var(--text);
-        margin: 0.8rem 0 0;
-        max-width: 72ch;
+        margin-bottom: 1.3rem;
       }
 
-      .tagline strong {
-        color: var(--warn);
+      h1 em {
+        color: var(--accent);
+        font-style: normal;
+        border-bottom: 3px solid var(--cyan);
+        padding-bottom: 1px;
       }
 
-      .cursor {
-        display: inline-block;
-        width: 0.6ch;
-        height: 1em;
-        margin-left: 0.18rem;
-        background: var(--accent);
-        vertical-align: -0.08em;
-        animation: blink 1s steps(1, end) infinite;
+      .hero-desc {
+        font-size: 0.97rem;
+        color: var(--muted);
+        max-width: 56ch;
+        margin-bottom: 1.8rem;
+      }
+
+      .hero-desc strong {
+        color: var(--text);
       }
 
       .cta-row {
-        margin-top: 1rem;
         display: flex;
         gap: 0.8rem;
         flex-wrap: wrap;
       }
 
       .btn {
-        text-decoration: none;
-        border-radius: 10px;
-        padding: 0.62rem 0.9rem;
-        font-weight: 700;
-        border: 1px solid var(--line);
+        font-family: "DM Mono", monospace;
         font-size: 0.84rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        text-decoration: none;
+        padding: 0.58rem 1.1rem;
+        border-radius: 3px;
+        border: 1.5px solid;
+        transition: background 0.14s, transform 0.14s;
+        display: inline-block;
+        cursor: pointer;
       }
 
+      .btn:hover { transform: translateY(-2px); }
+
       .btn-primary {
-        background: linear-gradient(135deg, rgba(86, 240, 158, 0.22), rgba(140, 255, 77, 0.2));
-        color: var(--accent);
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-dark);
+        border-color: var(--accent-dark);
       }
 
       .btn-secondary {
-        background: rgba(9, 30, 20, 0.7);
-        color: var(--text);
+        background: transparent;
+        color: var(--accent);
+        border-color: var(--border-strong);
       }
 
-      .grid {
-        margin-top: 1rem;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1rem;
+      .btn-secondary:hover { background: var(--surface); }
+
+      /* ── Divider ────────────────────────── */
+
+      .divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 2.8rem 0;
       }
 
-      .card {
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: rgba(8, 28, 18, 0.68);
-        padding: 1rem;
-      }
+      /* ── Section heading ────────────────── */
 
       h2 {
-        margin: 0 0 0.75rem;
-        font-size: 0.92rem;
-        color: var(--muted);
+        font-family: "DM Mono", monospace;
+        font-size: 0.74rem;
+        color: var(--faint);
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.16em;
+        margin-bottom: 1.3rem;
       }
 
-      ul {
-        margin: 0;
-        padding-left: 1rem;
+      /* ── Features ───────────────────────── */
+
+      .features-list {
+        list-style: none;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+        gap: 0.6rem 2rem;
+      }
+
+      .features-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.6rem;
+        font-size: 0.91rem;
         color: var(--text);
       }
 
-      li + li {
-        margin-top: 0.34rem;
+      .feat-icon {
+        color: var(--border-strong);
+        flex-shrink: 0;
+        font-size: 0.78rem;
+        margin-top: 0.28rem;
       }
+
+      /* ── RAM comparison ─────────────────── */
+
+      .ram-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .ram-table tr + tr {
+        border-top: 1px solid var(--border);
+      }
+
+      .ram-table td {
+        padding: 0.7rem 0;
+        font-size: 0.88rem;
+        vertical-align: middle;
+      }
+
+      .ram-label { width: 38%; color: var(--text); }
+
+      .ram-val {
+        width: 16%;
+        font-weight: 500;
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
+
+      .ram-bar-cell { width: 46%; padding-left: 1rem; }
+
+      .ram-bar-wrap {
+        height: 7px;
+        background: var(--surface);
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .ram-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      .bar-good    { background: var(--accent); }
+      .bar-neutral { background: var(--faint); }
+      .bar-warn    { background: var(--warn); }
+      .bar-bad     { background: var(--bad); }
+
+      .val-good    { color: var(--good); }
+      .val-neutral { color: var(--faint); }
+      .val-warn    { color: var(--warn); }
+      .val-bad     { color: var(--bad); }
+
+      .ram-note {
+        margin-top: 0.8rem;
+        font-size: 0.76rem;
+        color: var(--faint);
+        font-style: italic;
+      }
+
+      /* ── Install ────────────────────────── */
 
       pre {
-        margin: 0;
-        background: #031008;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 0.85rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--border-strong);
+        border-radius: 3px;
+        padding: 1.2rem 1.5rem;
+        overflow-x: auto;
+        font-size: 0.87rem;
+        line-height: 1.8;
         color: var(--text);
-        overflow: auto;
-        font-size: 0.88rem;
       }
 
-      .screenshot {
-        width: 100%;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-        display: block;
+      .c { color: var(--faint); }
+      .cmd { color: var(--accent-dark); }
+
+      /* ── Footer ─────────────────────────── */
+
+      .site-footer {
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        font-size: 0.79rem;
+        color: var(--faint);
       }
 
-      .note {
-        margin-top: 0.65rem;
-        color: var(--muted);
-        font-size: 0.9rem;
+      .site-footer a {
+        color: var(--accent);
+        text-decoration: none;
       }
 
-      .footer {
-        margin-top: 1rem;
-        color: var(--muted);
-        text-align: center;
-        font-size: 0.84rem;
+      .site-footer a:hover { text-decoration: underline; }
+
+      /* ── Badge ──────────────────────────── */
+
+      .badge {
+        display: inline-block;
+        font-size: 0.66rem;
+        padding: 0.1rem 0.42rem;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 2px;
+        color: var(--accent);
+        letter-spacing: 0.06em;
+        vertical-align: middle;
+        margin-left: 0.35rem;
       }
 
-      .reveal {
+      /* ── Animations ─────────────────────── */
+
+      .fade-up {
         opacity: 0;
-        transform: translateY(14px);
-        animation: rise 560ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        transform: translateY(10px);
+        animation: fadeUp 480ms ease forwards;
       }
 
-      .delay-1 {
-        animation-delay: 90ms;
-      }
+      .d1 { animation-delay: 0ms; }
+      .d2 { animation-delay: 90ms; }
+      .d3 { animation-delay: 170ms; }
+      .d4 { animation-delay: 250ms; }
+      .d5 { animation-delay: 330ms; }
 
-      .delay-2 {
-        animation-delay: 170ms;
-      }
-
-      .delay-3 {
-        animation-delay: 250ms;
+      @keyframes fadeUp {
+        to { opacity: 1; transform: translateY(0); }
       }
 
       @keyframes blink {
-        0%,
-        49% {
-          opacity: 1;
-        }
-
-        50%,
-        100% {
-          opacity: 0;
-        }
+        0%, 49% { opacity: 1; }
+        50%, 100% { opacity: 0; }
       }
 
-      @keyframes rise {
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
+      /* ── Responsive ─────────────────────── */
 
-      @media (max-width: 820px) {
-        .shell-top {
-          flex-wrap: wrap;
-        }
-
-        .shell-title {
-          order: 3;
-          width: 100%;
-        }
-
-        .grid {
-          grid-template-columns: 1fr;
-        }
+      @media (max-width: 540px) {
+        h1 { font-size: 1.55rem; }
+        .site-header { flex-direction: column; gap: 0.75rem; }
+        .site-footer { flex-direction: column; text-align: center; }
+        .ram-bar-cell { display: none; }
+        .ram-label { width: 50%; }
+        .ram-val { width: 50%; }
       }
     </style>
   </head>
   <body>
-    <main class="page">
-      <section class="shell reveal">
-        <div class="shell-top">
-          <div class="lights" aria-hidden="true">
-            <span class="dot dot-red"></span>
-            <span class="dot dot-yellow"></span>
-            <span class="dot dot-green"></span>
-          </div>
-          <div class="shell-title">mutui@linux: ~/music</div>
-          <a class="repo-link" href="https://github.com/notliad/mutui" target="_blank" rel="noreferrer">View on GitHub</a>
-        </div>
+    <div class="page">
 
-        <div class="shell-body">
-          <div class="prompt">$ mutui</div>
-          <section class="hero reveal delay-1">
-            <h1>because it's just music, not a Chrome tab<span class="cursor"></span></h1>
-            <p class="tagline">
-              A lightweight Linux music player with YouTube search, local library support, and background playback. <strong>Runs in your terminal and focuses on what matters.</strong>
-            </p>
-            <div class="cta-row">
-              <a class="btn btn-primary" href="#install">Install now</a>
-              <a class="btn btn-secondary" href="https://github.com/notliad/mutui#readme" target="_blank" rel="noreferrer">Read README</a>
-            </div>
-          </section>
+      <header class="site-header fade-up d1">
+        <div class="logo">mutui<span class="logo-cursor">_</span></div>
+        <nav>
+          <ul class="nav">
+            <li><a href="#features">features</a></li>
+            <li><a href="#install">install</a></li>
+            <li><a href="https://github.com/notliad/mutui" target="_blank" rel="noreferrer">github</a></li>
+          </ul>
+        </nav>
+      </header>
 
-          <section class="grid reveal delay-2">
-            <article class="card" id="features">
-              <h2>Features</h2>
-              <ul>
-                <li>YouTube search and playback via <code>yt-dlp</code> + <code>mpv</code></li>
-                <li>Local music library folders (Artists and Albums support)</li>
-                <li>Queue and playlists</li>
-                <li>Background playback with daemon</li>
-                <li>Terminal UI with fast keyboard shortcuts</li>
-              </ul>
-            </article>
-
-            <article class="card" id="install">
-              <h2>Install</h2>
-              <pre><code>1) Dependencies
-# Arch
-sudo pacman -S mpv yt-dlp
-
-# Ubuntu/Debian
-sudo apt install mpv yt-dlp
-
-# Fedora
-sudo dnf install mpv yt-dlp
-
-2) Clone the repo
-git clone https://github.com/notliad/mutui.git
-
-3) Build
-cargo build --release
-
-4) Install and Run
-./scripts/install-desktop-entry.sh
-mutui</code></pre>
-            </article>
-          </section>
-
-          <p class="footer reveal delay-3">MIT License. built for music, minus the RAM tax.</p>
+      <section class="hero fade-up d2">
+        <p class="hero-eyebrow">// terminal music player for linux</p>
+        <h1>music that fits<br>in <em>your RAM</em></h1>
+        <p class="hero-desc">
+          <strong>mutui</strong> It plays music. That’s it. Local files and YouTube, no ceremony. No configs. No plugins. No personality.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#install">get started</a>
+          <a class="btn btn-secondary" href="https://github.com/notliad/mutui" target="_blank" rel="noreferrer">view source</a>
         </div>
       </section>
-    </main>
+
+      <hr class="divider fade-up d3" />
+
+      <section class="fade-up d3" id="features">
+        <h2>// what it does</h2>
+        <ul class="features-list">
+          <li><span class="feat-icon">▸</span> Search for tracks and playlists on YouTube</li>
+          <li><span class="feat-icon">▸</span> Add your local music library<br>(filter by artists &amp; albums)</li>
+          <li><span class="feat-icon">▸</span> Create queue and local playlists</li>
+          <li><span class="feat-icon">▸</span> Background playback</li>
+          <li><span class="feat-icon">▸</span> Terminal UI with keyboard shortcuts<br>(vim 4life, baby!)</li>
+          <li><span class="feat-icon">▸</span> No subscription required<br>(can you imagine?)</li>
+        </ul>
+      </section>
+
+      <hr class="divider fade-up d3" />
+
+      <section class="fade-up d4">
+        <h2>// RAM: a brief comparison (every byte count$)</h2>
+        <table class="ram-table">
+          <tbody>
+            <tr>
+              <td class="ram-label">mutui <span class="badge">you</span></td>
+              <td class="ram-val val-good">~80 MB</td>
+              <td class="ram-bar-cell"><div class="ram-bar-wrap"><div class="ram-bar bar-good" style="width:23%"></div></div></td>
+            </tr>
+            <tr>
+              <td class="ram-label">a chrome tab (idle)</td>
+              <td class="ram-val val-warn">~200 MB</td>
+              <td class="ram-bar-cell"><div class="ram-bar-wrap"><div class="ram-bar bar-warn" style="width:50%"></div></div></td>
+            </tr>
+            <tr>
+              <td class="ram-label">spotify</td>
+              <td class="ram-val val-bad">~400 MB</td>
+              <td class="ram-bar-cell"><div class="ram-bar-wrap"><div class="ram-bar bar-bad" style="width:100%"></div></div></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="ram-note">* approximate values. not peer reviewed. your RAM may differ. blah blah blah.</p>
+      </section>
+
+      <hr class="divider fade-up d4" />
+
+      <section class="fade-up d4" id="install">
+        <h2>// install</h2>
+        <pre><code><span class="c"># 1. dependencies</span>
+<span class="c"># arch</span>
+<span class="cmd">sudo pacman -S yt-dlp</span>
+<span class="c"># ubuntu/debian</span>
+<span class="cmd">sudo apt install yt-dlp</span>
+<span class="c"># fedora</span>
+<span class="cmd">sudo dnf install yt-dlp</span>
+
+<span class="c"># 2. build</span>
+<span class="cmd">git clone https://github.com/notliad/mutui.git &amp;&amp; cd mutui</span>
+<span class="cmd">cargo build --release</span>
+
+<span class="c"># 3. install &amp; run</span>
+<span class="cmd">./scripts/install-desktop-entry.sh</span>
+<span class="cmd">mutui</span></code></pre>
+      </section>
+
+      <footer class="site-footer fade-up d5">
+        <span>MIT License — built for music, not memory leaks.</span>
+        <a href="https://github.com/notliad/mutui" target="_blank" rel="noreferrer">github.com/notliad/mutui</a>
+      </footer>
+
+    </div>
   </body>
 </html>

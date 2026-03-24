@@ -121,7 +121,6 @@ impl ksni::Tray for MutuiTray {
             ksni::MenuItem::Separator,
             StandardItem {
                 label: "Quit".into(),
-                icon_name: "application-exit".into(),
                 activate: Box::new(|this: &mut Self| this.dispatch(TrayAction::Quit)),
                 ..Default::default()
             }
