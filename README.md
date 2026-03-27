@@ -8,6 +8,7 @@ Features:
 - Local music library folders (supports Artists & Albums);
 - Queue and local playlists;
 - Background playback;
+- Vim like navigation;
 
 ## Requirements
 
