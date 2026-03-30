@@ -1,5 +1,5 @@
 # mutui
-`mutui` is a lightweight terminal based music player for Linux.
+`mutui` is a lightweight terminal based music player for Linux and macOS.
 
 ![mutui](https://github.com/user-attachments/assets/e3ebdd86-3bad-42f4-a6a4-04a876d434ed)
 
@@ -12,25 +12,32 @@ Features:
 
 ## Requirements
 
-- `yt-dlp`
 - Rust toolchain (`cargo`) to build
+- `yt-dlp`
+- `mpv` runtime + `libmpv` development files
 
-Install deps:
+### Linux dependencies
 
 ```bash
 # Arch Linux
-sudo pacman -S yt-dlp
+sudo pacman -S mpv yt-dlp
 
 # Ubuntu/Debian
-sudo apt install yt-dlp
+sudo apt install mpv yt-dlp libmpv-dev pkg-config
 
 # Fedora
-sudo dnf install yt-dlp
+sudo dnf install mpv yt-dlp mpv-libs pkgconf-pkg-config
+```
+
+### macOS dependencies
+
+```bash
+brew install rust mpv yt-dlp pkg-config
 ```
 
 ## Quick Start
 
-Desktop Install
+Linux desktop install
 
 ```bash
 chmod +x scripts/install-desktop-entry.sh
@@ -38,6 +45,13 @@ chmod +x scripts/install-desktop-entry.sh
 ```
 
 This installs binaries and a desktop entry in your user environment.
+
+macOS build and run:
+
+```bash
+cargo build --release
+./target/release/mutui
+```
 
 or build yourself:
 
@@ -80,7 +94,8 @@ Global:
 
 ## Tech notes:
 - `mutui` starts `mutuid` automatically if needed.
-- Pulse loopback routing is disabled by default to avoid startup audio glitches. Enable it with `MUTUI_ENABLE_AUDIO_ROUTING=1 mutui` if you need the custom sink path.
+- Pulse loopback routing (`MUTUI_ENABLE_AUDIO_ROUTING=1`) is Linux-only and disabled by default.
+- MPRIS integration is available on Linux desktop sessions.
 
 ## License
 

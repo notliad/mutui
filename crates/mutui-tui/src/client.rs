@@ -38,10 +38,7 @@ impl DaemonClient {
         // Read length line
         let mut len_line = String::new();
         self.reader.read_line(&mut len_line).await?;
-        let _expected_len: usize = len_line
-            .trim()
-            .parse()
-            .context("Invalid response frame")?;
+        let _expected_len: usize = len_line.trim().parse().context("Invalid response frame")?;
 
         // Read JSON line
         let mut json_line = String::new();
@@ -54,8 +51,9 @@ impl DaemonClient {
 
 /// Start the daemon as a detached background process.
 pub fn start_daemon() -> Result<()> {
-    let daemon_exe = find_binary("mutuid")
-        .context("Daemon binary not found. Install mutuid or build with `cargo build --release`.")?;
+    let daemon_exe = find_binary("mutuid").context(
+        "Daemon binary not found. Install mutuid or build with `cargo build --release`.",
+    )?;
 
     use std::process::{Command, Stdio};
 
@@ -83,41 +81,57 @@ pub fn start_daemon() -> Result<()> {
 
 /// Start the tray process (best-effort).
 pub fn start_tray() {
-    let Some(tray_exe) = find_binary("mutui-tray") else {
+    #[cfg(not(target_os = "linux"))]
+    {
         return;
-    };
+    }
 
-    let _ = std::process::Command::new("setsid")
-        .arg(&tray_exe)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .or_else(|_| {
-            std::process::Command::new(&tray_exe)
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-        });
+    #[cfg(target_os = "linux")]
+    {
+        let Some(tray_exe) = find_binary("mutui-tray") else {
+            return;
+        };
+
+        let _ = std::process::Command::new("setsid")
+            .arg(&tray_exe)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new(&tray_exe)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+            });
+    }
 }
 
 /// Stop the tray process if it is running (best-effort).
 pub fn stop_tray() {
-    let lock_path = mutui_common::socket_path().with_file_name("mutui-tray.lock");
-    let Ok(pid_text) = std::fs::read_to_string(&lock_path) else {
+    #[cfg(not(target_os = "linux"))]
+    {
         return;
-    };
+    }
 
-    let Ok(pid) = pid_text.trim().parse::<i32>() else {
-        let _ = std::fs::remove_file(lock_path);
-        return;
-    };
+    #[cfg(target_os = "linux")]
+    {
+        let lock_path = mutui_common::socket_path().with_file_name("mutui-tray.lock");
+        let Ok(pid_text) = std::fs::read_to_string(&lock_path) else {
+            return;
+        };
 
-    let _ = std::process::Command::new("kill")
-        .arg("-TERM")
-        .arg(pid.to_string())
-        .status();
+        let Ok(pid) = pid_text.trim().parse::<i32>() else {
+            let _ = std::fs::remove_file(lock_path);
+            return;
+        };
+
+        let _ = std::process::Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .status();
+    }
 }
 
 fn is_executable(path: &Path) -> bool {

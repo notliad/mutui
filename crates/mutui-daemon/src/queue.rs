@@ -63,7 +63,10 @@ impl Queue {
         // Adjust current index if needed
         if index < self.current {
             self.current = self.current.saturating_sub(1);
-        } else if index == self.current && self.current >= self.items.len() && !self.items.is_empty() {
+        } else if index == self.current
+            && self.current >= self.items.len()
+            && !self.items.is_empty()
+        {
             self.current = self.items.len() - 1;
         }
         Some(item.track)

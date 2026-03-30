@@ -73,7 +73,10 @@ fn render_now_playing_top(frame: &mut Frame, app: &App, area: Rect) {
     };
     let pill = Line::from(vec![
         Span::styled("[", Style::default().fg(Color::DarkGray)),
-        Span::styled(state, Style::default().fg(color).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            state,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ),
         Span::styled("]", Style::default().fg(Color::DarkGray)),
     ]);
     frame.render_widget(Paragraph::new(pill), chunks[5]);
@@ -91,7 +94,9 @@ fn render_track_title(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(format!(" {state} "), Style::default().fg(Color::Cyan)),
             Span::styled(
                 track.title.as_str(),
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]))
         .wrap(Wrap { trim: false })
@@ -193,7 +198,9 @@ fn render_queue_compact(frame: &mut Frame, app: &App, area: Rect, two_columns: b
             (false, false) => " ",
         };
         let style = if current {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
         } else {
@@ -204,7 +211,9 @@ fn render_queue_compact(frame: &mut Frame, app: &App, area: Rect, two_columns: b
             Span::styled(
                 fit_inline(&track.title, inner.width.saturating_sub(5) as usize),
                 if current {
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
                 } else if selected {
                     Style::default().fg(Color::Yellow)
                 } else {
@@ -260,5 +269,3 @@ fn fit_inline(input: &str, max: usize) -> String {
     out.push('…');
     out
 }
-
-

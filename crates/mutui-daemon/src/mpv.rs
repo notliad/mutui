@@ -20,9 +20,7 @@ impl MpvHandle {
         let audio_routing = if audio_routing_requested() {
             setup_audio_routing()
         } else {
-            info!(
-                "Pulse loopback routing disabled (set MUTUI_ENABLE_AUDIO_ROUTING=1 to enable)"
-            );
+            info!("Pulse loopback routing disabled (set MUTUI_ENABLE_AUDIO_ROUTING=1 to enable)");
             None
         };
 
@@ -99,9 +97,7 @@ impl MpvHandle {
     }
 
     pub fn get_volume(&self) -> i64 {
-        self.mpv
-            .get_property::<i64>("volume")
-            .unwrap_or(80)
+        self.mpv.get_property::<i64>("volume").unwrap_or(80)
     }
 
     pub fn is_paused(&self) -> bool {
@@ -109,9 +105,7 @@ impl MpvHandle {
     }
 
     pub fn is_idle(&self) -> bool {
-        self.mpv
-            .get_property::<bool>("idle-active")
-            .unwrap_or(true)
+        self.mpv.get_property::<bool>("idle-active").unwrap_or(true)
     }
 
     pub fn shutdown(&self) {
@@ -132,118 +126,164 @@ fn audio_routing_requested() -> bool {
 }
 
 fn setup_audio_routing() -> Option<AudioRouting> {
-    cleanup_stale_audio_routing();
+    #[cfg(not(target_os = "linux"))]
+    {
+        info!("Custom audio routing is only available on Linux (PulseAudio/PipeWire pactl)");
+        return None;
+    }
 
-    let sink_module_id = run_pactl(&[
-        "load-module",
-        "module-null-sink",
-        &format!("sink_name={MUTUI_SINK}"),
-        "sink_properties=device.description=mutui_sink",
-    ])
-    .and_then(|v| v.parse::<u32>().ok())?;
+    #[cfg(target_os = "linux")]
+    {
+        cleanup_stale_audio_routing();
 
-    let loopback_module_id = run_pactl(&[
-        "load-module",
-        "module-loopback",
-        &format!("source={MUTUI_SINK}.monitor"),
-        "sink=@DEFAULT_SINK@",
-        "latency_msec=20",
-    ])
-    .and_then(|v| v.parse::<u32>().ok());
+        let sink_module_id = run_pactl(&[
+            "load-module",
+            "module-null-sink",
+            &format!("sink_name={MUTUI_SINK}"),
+            "sink_properties=device.description=mutui_sink",
+        ])
+        .and_then(|v| v.parse::<u32>().ok())?;
 
-    if let Some(loopback_module_id) = loopback_module_id {
-        info!("Audio routing enabled on sink '{MUTUI_SINK}'");
-        Some(AudioRouting {
-            sink_module_id,
-            loopback_module_id,
-        })
-    } else {
-        let _ = run_pactl(&["unload-module", &sink_module_id.to_string()]);
-        info!("Pulse loopback unavailable; using default audio routing");
-        None
+        let loopback_module_id = run_pactl(&[
+            "load-module",
+            "module-loopback",
+            &format!("source={MUTUI_SINK}.monitor"),
+            "sink=@DEFAULT_SINK@",
+            "latency_msec=20",
+        ])
+        .and_then(|v| v.parse::<u32>().ok());
+
+        if let Some(loopback_module_id) = loopback_module_id {
+            info!("Audio routing enabled on sink '{MUTUI_SINK}'");
+            Some(AudioRouting {
+                sink_module_id,
+                loopback_module_id,
+            })
+        } else {
+            let _ = run_pactl(&["unload-module", &sink_module_id.to_string()]);
+            info!("Pulse loopback unavailable; using default audio routing");
+            None
+        }
     }
 }
 
 fn teardown_audio_routing(routing: Option<AudioRouting>) {
-    if let Some(r) = routing {
-        let _ = run_pactl(&["unload-module", &r.loopback_module_id.to_string()]);
-        let _ = run_pactl(&["unload-module", &r.sink_module_id.to_string()]);
-    }
-
-    // Also clear out any stale mutui modules left from a previous unclean exit.
-    cleanup_stale_audio_routing();
-}
-
-fn cleanup_stale_audio_routing() {
-    let modules = list_mutui_modules();
-    if modules.is_empty() {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = routing;
         return;
     }
 
-    let mut removed = 0usize;
-
-    // Unload loopbacks first, then sinks.
-    for id in modules
-        .iter()
-        .filter(|(_, is_loopback)| *is_loopback)
-        .map(|(id, _)| *id)
-        .chain(
-            modules
-                .iter()
-                .filter(|(_, is_loopback)| !*is_loopback)
-                .map(|(id, _)| *id),
-        )
+    #[cfg(target_os = "linux")]
     {
-        if run_pactl(&["unload-module", &id.to_string()]).is_some() {
-            removed += 1;
+        if let Some(r) = routing {
+            let _ = run_pactl(&["unload-module", &r.loopback_module_id.to_string()]);
+            let _ = run_pactl(&["unload-module", &r.sink_module_id.to_string()]);
         }
+
+        // Also clear out any stale mutui modules left from a previous unclean exit.
+        cleanup_stale_audio_routing();
+    }
+}
+
+fn cleanup_stale_audio_routing() {
+    #[cfg(not(target_os = "linux"))]
+    {
+        return;
     }
 
-    if removed > 0 {
-        info!("Cleaned up {removed} stale mutui audio module(s)");
+    #[cfg(target_os = "linux")]
+    {
+        let modules = list_mutui_modules();
+        if modules.is_empty() {
+            return;
+        }
+
+        let mut removed = 0usize;
+
+        // Unload loopbacks first, then sinks.
+        for id in modules
+            .iter()
+            .filter(|(_, is_loopback)| *is_loopback)
+            .map(|(id, _)| *id)
+            .chain(
+                modules
+                    .iter()
+                    .filter(|(_, is_loopback)| !*is_loopback)
+                    .map(|(id, _)| *id),
+            )
+        {
+            if run_pactl(&["unload-module", &id.to_string()]).is_some() {
+                removed += 1;
+            }
+        }
+
+        if removed > 0 {
+            info!("Cleaned up {removed} stale mutui audio module(s)");
+        }
     }
 }
 
 fn list_mutui_modules() -> Vec<(u32, bool)> {
-    let output = match std::process::Command::new("pactl")
-        .args(["list", "short", "modules"])
-        .output()
+    #[cfg(not(target_os = "linux"))]
     {
-        Ok(output) if output.status.success() => output,
-        _ => {
-            warn!("Could not query pactl modules for stale mutui cleanup");
-            return Vec::new();
-        }
-    };
+        return Vec::new();
+    }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    stdout
-        .lines()
-        .filter_map(|line| {
-            let mut parts = line.split_whitespace();
-            let id = parts.next()?.parse::<u32>().ok()?;
-
-            let is_mutui_loopback =
-                line.contains("module-loopback") && line.contains("source=mutui_sink.monitor");
-            let is_mutui_sink =
-                line.contains("module-null-sink") && line.contains("sink_name=mutui_sink");
-
-            if is_mutui_loopback {
-                Some((id, true))
-            } else if is_mutui_sink {
-                Some((id, false))
-            } else {
-                None
+    #[cfg(target_os = "linux")]
+    {
+        let output = match std::process::Command::new("pactl")
+            .args(["list", "short", "modules"])
+            .output()
+        {
+            Ok(output) if output.status.success() => output,
+            _ => {
+                warn!("Could not query pactl modules for stale mutui cleanup");
+                return Vec::new();
             }
-        })
-        .collect()
+        };
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        stdout
+            .lines()
+            .filter_map(|line| {
+                let mut parts = line.split_whitespace();
+                let id = parts.next()?.parse::<u32>().ok()?;
+
+                let is_mutui_loopback =
+                    line.contains("module-loopback") && line.contains("source=mutui_sink.monitor");
+                let is_mutui_sink =
+                    line.contains("module-null-sink") && line.contains("sink_name=mutui_sink");
+
+                if is_mutui_loopback {
+                    Some((id, true))
+                } else if is_mutui_sink {
+                    Some((id, false))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
 
 fn run_pactl(args: &[&str]) -> Option<String> {
-    let output = std::process::Command::new("pactl").args(args).output().ok()?;
-    if !output.status.success() {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = args;
         return None;
     }
-    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+
+    #[cfg(target_os = "linux")]
+    {
+        let output = std::process::Command::new("pactl")
+            .args(args)
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
 }

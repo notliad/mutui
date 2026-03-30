@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use log::{error, info};
 use mutui_common::{PlayerState, Request, Response};
 use tokio::sync::Mutex;
-use zbus::{Connection, interface};
+use zbus::{interface, Connection};
 use zvariant::{OwnedObjectPath, Value};
 
 use crate::server::Daemon;
@@ -136,7 +136,10 @@ impl PlayerIface {
         let status = d.get_status();
 
         let mut meta = HashMap::new();
-        let track_id = format!("/org/mpris/MediaPlayer2/track/{}", status.queue_index.max(1));
+        let track_id = format!(
+            "/org/mpris/MediaPlayer2/track/{}",
+            status.queue_index.max(1)
+        );
         if let Ok(track_id_path) = OwnedObjectPath::try_from(track_id) {
             meta.insert("mpris:trackid".to_string(), Value::from(track_id_path));
         }

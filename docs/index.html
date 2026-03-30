@@ -394,7 +394,7 @@
       </header>
 
       <section class="hero fade-up d2">
-        <p class="hero-eyebrow">// terminal music player for linux</p>
+        <p class="hero-eyebrow">// terminal music player for linux + macOS</p>
         <h1>music that fits<br>in <em>your RAM</em></h1>
         <p class="hero-desc">
           <strong>mutui</strong> It plays music. That’s it. Local files and YouTube, no ceremony. No configs. No plugins. No personality.
@@ -451,18 +451,23 @@
         <h2>// install</h2>
         <pre><code><span class="c"># 1. dependencies</span>
 <span class="c"># arch</span>
-<span class="cmd">sudo pacman -S yt-dlp</span>
+<span class="cmd">sudo pacman -S mpv yt-dlp</span>
 <span class="c"># ubuntu/debian</span>
-<span class="cmd">sudo apt install yt-dlp</span>
+<span class="cmd">sudo apt install mpv yt-dlp libmpv-dev pkg-config</span>
 <span class="c"># fedora</span>
-<span class="cmd">sudo dnf install yt-dlp</span>
+<span class="cmd">sudo dnf install mpv yt-dlp mpv-libs pkgconf-pkg-config</span>
+<span class="c"># macOS (homebrew)</span>
+<span class="cmd">brew install rust mpv yt-dlp pkg-config</span>
 
 <span class="c"># 2. build</span>
 <span class="cmd">git clone https://github.com/notliad/mutui.git &amp;&amp; cd mutui</span>
 <span class="cmd">cargo build --release</span>
 
 <span class="c"># 3. install &amp; run</span>
+<span class="c"># linux desktop</span>
 <span class="cmd">./scripts/install-desktop-entry.sh</span>
+<span class="c"># macOS</span>
+<span class="cmd">./target/release/mutui</span>
 <span class="cmd">mutui</span></code></pre>
       </section>
 

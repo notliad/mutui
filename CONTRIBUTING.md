@@ -12,6 +12,19 @@ Thanks for contributing to `mutui (MusicUniversalTUI)`.
 cargo build
 ```
 
+Platform-specific dependency helpers:
+
+```bash
+# Ubuntu/Debian
+sudo apt install mpv yt-dlp libmpv-dev pkg-config
+
+# Fedora
+sudo dnf install mpv yt-dlp mpv-libs pkgconf-pkg-config
+
+# macOS (Homebrew)
+brew install rust mpv yt-dlp pkg-config
+```
+
 4. Run TUI:
 
 ```bash

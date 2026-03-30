@@ -1,9 +1,9 @@
-mod player_bar;
-mod now_playing;
-mod queue_panel;
-mod playlists;
-mod search;
 mod library;
+mod now_playing;
+mod player_bar;
+mod playlists;
+mod queue_panel;
+mod search;
 
 use crate::app::App;
 use ratatui::prelude::*;
@@ -160,9 +160,16 @@ fn render_shortcuts_page(frame: &mut Frame, title: &str) {
         .style(Style::default().bg(Color::Black));
 
     let header = Row::new(vec![
-        Cell::from("Shortcut").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        Cell::from("Description")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Shortcut").style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("Description").style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
     ]);
 
     let rows = vec![
@@ -179,11 +186,20 @@ fn render_shortcuts_page(frame: &mut Frame, title: &str) {
         Row::new(vec!["H / L", "Move selected queue item"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["/", "Focus search input"]),
-        Row::new(vec!["Ctrl+J / Ctrl+K", "Jump between track and playlist sections"]),
+        Row::new(vec![
+            "Ctrl+J / Ctrl+K",
+            "Jump between track and playlist sections",
+        ]),
         Row::new(vec!["j / k", "Navigate inside current section"]),
-        Row::new(vec!["Enter / -> / l", "Tracks: play | Playlists: open/close folder"]),
+        Row::new(vec![
+            "Enter / -> / l",
+            "Tracks: play | Playlists: open/close folder",
+        ]),
         Row::new(vec!["<- / h", "Close opened playlist folder"]),
-        Row::new(vec!["a", "Tracks: queue track | Playlists: queue all tracks"]),
+        Row::new(vec![
+            "a",
+            "Tracks: queue track | Playlists: queue all tracks",
+        ]),
         Row::new(vec!["", ""]),
         Row::new(vec!["Enter / -> / l", "Open selected playlist"]),
         Row::new(vec!["Enter / <- / h", "Close selected playlist"]),
@@ -231,11 +247,13 @@ fn render_about_page(frame: &mut Frame, title: &str) {
 
     let text = vec![
         Line::from(vec![
-            Span::styled("mutui", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             Span::styled(
-                format!(" v{version}"),
-                Style::default().fg(Color::Gray),
+                "mutui",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
+            Span::styled(format!(" v{version}"), Style::default().fg(Color::Gray)),
         ]),
         Line::from(""),
         Line::from("Terminal client for the mutui music daemon."),
@@ -278,7 +296,11 @@ fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App) {
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Fill(1), Constraint::Length(2), Constraint::Fill(1)])
+        .constraints([
+            Constraint::Fill(1),
+            Constraint::Length(2),
+            Constraint::Fill(1),
+        ])
         .split(inner);
 
     let text = Paragraph::new(vec![
@@ -311,7 +333,11 @@ fn render_delete_library_folder_select_popup(frame: &mut Frame, app: &App) {
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(2), Constraint::Min(4), Constraint::Length(1)])
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(4),
+            Constraint::Length(1),
+        ])
         .split(inner);
 
     let title = Paragraph::new("Select a folder to remove")

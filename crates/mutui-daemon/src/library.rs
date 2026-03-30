@@ -1,7 +1,7 @@
 use anyhow::Result;
-use log::{debug, info};
 use lofty::prelude::{Accessor, AudioFile, TaggedFileExt};
 use lofty::probe::Probe;
+use log::{debug, info};
 use mutui_common::Track;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -135,15 +135,12 @@ fn file_to_track(path: &Path) -> Option<Track> {
     // Try to read real audio tags via lofty
     match Probe::open(path).and_then(|p| p.read()) {
         Ok(tagged_file) => {
-            let duration = Some(
-                tagged_file
-                    .properties()
-                    .duration()
-                    .as_secs_f64(),
-            );
+            let duration = Some(tagged_file.properties().duration().as_secs_f64());
 
             // lofty tries tags in priority order; take the first populated tag
-            let tag = tagged_file.primary_tag().or_else(|| tagged_file.first_tag());
+            let tag = tagged_file
+                .primary_tag()
+                .or_else(|| tagged_file.first_tag());
 
             let (title, artist, album) = if let Some(tag) = tag {
                 let title = tag

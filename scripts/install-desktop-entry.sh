@@ -83,7 +83,7 @@ install_system_deps
 
 # Build required binaries explicitly.
 cargo build --release --manifest-path "${PROJECT_DIR}/Cargo.toml" \
-  --bin mutui --bin mutuid --bin mutui-tray
+  --bin mutui --bin mutuid --bin mutui-tray --features tray-linux
 
 require_file() {
   if [ ! -f "$1" ]; then

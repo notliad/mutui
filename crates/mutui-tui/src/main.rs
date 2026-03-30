@@ -63,7 +63,6 @@ async fn run(
         app.library_folders = folders;
     }
 
-
     let mut tick_counter: u8 = 0;
 
     loop {
@@ -175,7 +174,8 @@ async fn run(
             if let Some(query) = app.pending_search_query.take() {
                 search_task = Some(tokio::spawn(async move {
                     let tracks = crate::client::send_once(Request::Search(query.clone())).await?;
-                    let playlists = crate::client::send_once(Request::SearchPlaylists(query)).await?;
+                    let playlists =
+                        crate::client::send_once(Request::SearchPlaylists(query)).await?;
                     Ok((tracks, playlists))
                 }));
             }
@@ -188,7 +188,8 @@ async fn run(
             ) {
                 app.search_playlist_loading = true;
                 playlist_tracks_task = Some(tokio::spawn(async move {
-                    let resp = crate::client::send_once(Request::GetYoutubePlaylistTracks(url)).await?;
+                    let resp =
+                        crate::client::send_once(Request::GetYoutubePlaylistTracks(url)).await?;
                     Ok((id, resp))
                 }));
             }
@@ -210,9 +211,7 @@ async fn run(
         tick_counter += 1;
         if tick_counter >= 10 {
             tick_counter = 0;
-            if let Ok(Response::Status(status)) =
-                daemon.send(&Request::GetStatus).await
-            {
+            if let Ok(Response::Status(status)) = daemon.send(&Request::GetStatus).await {
                 app.status = *status;
                 clamp_queue_selection(&mut app);
             }
@@ -227,11 +226,7 @@ async fn run(
     Ok(())
 }
 
-async fn handle_key(
-    app: &mut App,
-    daemon: &mut DaemonClient,
-    key: event::KeyEvent,
-) -> Result<()> {
+async fn handle_key(app: &mut App, daemon: &mut DaemonClient, key: event::KeyEvent) -> Result<()> {
     if app.library_delete_confirm_selected.is_some() {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
@@ -249,8 +244,9 @@ async fn handle_key(
             KeyCode::Enter => {
                 let selected = app.library_delete_confirm_selected.unwrap_or(0);
                 if let Some(folder) = app.library_folders.get(selected).cloned() {
-                    if let Ok(Response::LibraryFolders(folders)) =
-                        daemon.send(&Request::RemoveLibraryFolder(folder.clone())).await
+                    if let Ok(Response::LibraryFolders(folders)) = daemon
+                        .send(&Request::RemoveLibraryFolder(folder.clone()))
+                        .await
                     {
                         app.library_folders = folders;
                         app.library_delete_confirm_selected = None;
@@ -400,7 +396,11 @@ async fn handle_key(
         KeyCode::Char('A') => {
             let _ = daemon.send(&Request::ToggleAutoplay).await;
             app.status.autoplay_enabled = !app.status.autoplay_enabled;
-            let mode = if app.status.autoplay_enabled { "ON" } else { "OFF" };
+            let mode = if app.status.autoplay_enabled {
+                "ON"
+            } else {
+                "OFF"
+            };
             app.notify(format!("Auto-play: {mode}"));
         }
         KeyCode::Char('J') => {
@@ -488,7 +488,9 @@ fn clamp_queue_selection(app: &mut App) {
     if app.status.queue.is_empty() {
         app.queue_selected = 0;
     } else {
-        app.queue_selected = app.queue_selected.min(app.status.queue.len().saturating_sub(1));
+        app.queue_selected = app
+            .queue_selected
+            .min(app.status.queue.len().saturating_sub(1));
     }
 }
 
@@ -517,99 +519,93 @@ async fn handle_search_normal(
                 app.search_playlist_track_focus = false;
             }
         }
-        KeyCode::Down | KeyCode::Char('j') => {
-            match app.search_section {
-                SearchSection::Tracks => {
-                    if !app.search_results.is_empty() {
-                        if app.search_selected + 1 < app.search_results.len() {
-                            app.search_selected += 1;
-                        } else if !app.search_playlist_results.is_empty() {
-                            app.search_section = SearchSection::Playlists;
-                        }
+        KeyCode::Down | KeyCode::Char('j') => match app.search_section {
+            SearchSection::Tracks => {
+                if !app.search_results.is_empty() {
+                    if app.search_selected + 1 < app.search_results.len() {
+                        app.search_selected += 1;
                     } else if !app.search_playlist_results.is_empty() {
                         app.search_section = SearchSection::Playlists;
                     }
+                } else if !app.search_playlist_results.is_empty() {
+                    app.search_section = SearchSection::Playlists;
                 }
-                SearchSection::Playlists => {
-                    if app.search_playlist_expanded && app.search_playlist_track_focus {
-                        if app.search_playlist_track_selected + 1 < app.search_playlist_tracks.len() {
-                            app.search_playlist_track_selected += 1;
-                        } else if app.search_playlist_selected + 1 < app.search_playlist_results.len() {
-                            app.search_playlist_track_focus = false;
-                            app.search_playlist_selected += 1;
-                            app.search_playlist_track_selected = 0;
-                            app.search_playlist_expanded = false;
-                            refresh_selected_search_playlist(app);
-                        }
-                    } else if app.search_playlist_expanded && !app.search_playlist_tracks.is_empty() {
-                        app.search_playlist_track_focus = true;
-                        app.search_playlist_track_selected = 0;
+            }
+            SearchSection::Playlists => {
+                if app.search_playlist_expanded && app.search_playlist_track_focus {
+                    if app.search_playlist_track_selected + 1 < app.search_playlist_tracks.len() {
+                        app.search_playlist_track_selected += 1;
                     } else if app.search_playlist_selected + 1 < app.search_playlist_results.len() {
+                        app.search_playlist_track_focus = false;
                         app.search_playlist_selected += 1;
                         app.search_playlist_track_selected = 0;
                         app.search_playlist_expanded = false;
                         refresh_selected_search_playlist(app);
                     }
+                } else if app.search_playlist_expanded && !app.search_playlist_tracks.is_empty() {
+                    app.search_playlist_track_focus = true;
+                    app.search_playlist_track_selected = 0;
+                } else if app.search_playlist_selected + 1 < app.search_playlist_results.len() {
+                    app.search_playlist_selected += 1;
+                    app.search_playlist_track_selected = 0;
+                    app.search_playlist_expanded = false;
+                    refresh_selected_search_playlist(app);
                 }
             }
-        }
-        KeyCode::Up | KeyCode::Char('k') => {
-            match app.search_section {
-                SearchSection::Tracks => {
-                    app.search_selected = app.search_selected.saturating_sub(1);
-                }
-                SearchSection::Playlists => {
-                    if app.search_playlist_track_focus {
-                        if app.search_playlist_track_selected > 0 {
-                            app.search_playlist_track_selected -= 1;
-                        } else {
-                            app.search_playlist_track_focus = false;
-                        }
-                    } else if app.search_playlist_selected > 0 {
-                        app.search_playlist_selected -= 1;
-                        app.search_playlist_track_selected = 0;
-                        app.search_playlist_expanded = false;
-                        refresh_selected_search_playlist(app);
-                    } else if !app.search_results.is_empty() {
-                        app.search_section = SearchSection::Tracks;
-                        app.search_selected = app.search_results.len().saturating_sub(1);
+        },
+        KeyCode::Up | KeyCode::Char('k') => match app.search_section {
+            SearchSection::Tracks => {
+                app.search_selected = app.search_selected.saturating_sub(1);
+            }
+            SearchSection::Playlists => {
+                if app.search_playlist_track_focus {
+                    if app.search_playlist_track_selected > 0 {
+                        app.search_playlist_track_selected -= 1;
+                    } else {
+                        app.search_playlist_track_focus = false;
                     }
+                } else if app.search_playlist_selected > 0 {
+                    app.search_playlist_selected -= 1;
+                    app.search_playlist_track_selected = 0;
+                    app.search_playlist_expanded = false;
+                    refresh_selected_search_playlist(app);
+                } else if !app.search_results.is_empty() {
+                    app.search_section = SearchSection::Tracks;
+                    app.search_selected = app.search_results.len().saturating_sub(1);
                 }
             }
-        }
-        KeyCode::Enter => {
-            match app.search_section {
-                SearchSection::Tracks => {
-                    if let Some(track) = app.selected_search_track().cloned() {
-                        if app.status.queue.is_empty() {
-                            let _ = daemon.send(&Request::AddToQueue(track)).await;
-                        } else {
-                            let target = (app.status.queue_index + 1).min(app.status.queue.len());
-                            let _ = daemon.send(&Request::InsertNext(track)).await;
-                            let _ = daemon.send(&Request::PlayIndex(target)).await;
-                        }
+        },
+        KeyCode::Enter => match app.search_section {
+            SearchSection::Tracks => {
+                if let Some(track) = app.selected_search_track().cloned() {
+                    if app.status.queue.is_empty() {
+                        let _ = daemon.send(&Request::AddToQueue(track)).await;
+                    } else {
+                        let target = (app.status.queue_index + 1).min(app.status.queue.len());
+                        let _ = daemon.send(&Request::InsertNext(track)).await;
+                        let _ = daemon.send(&Request::PlayIndex(target)).await;
+                    }
+                    app.notify("Playing now!");
+                }
+            }
+            SearchSection::Playlists => {
+                if app.search_playlist_expanded && app.search_playlist_track_focus {
+                    if let Some(track) = app
+                        .search_playlist_tracks
+                        .get(app.search_playlist_track_selected)
+                        .cloned()
+                    {
+                        play_or_queue_now(app, daemon, track).await;
                         app.notify("Playing now!");
                     }
-                }
-                SearchSection::Playlists => {
-                    if app.search_playlist_expanded && app.search_playlist_track_focus {
-                        if let Some(track) = app
-                            .search_playlist_tracks
-                            .get(app.search_playlist_track_selected)
-                            .cloned()
-                        {
-                            play_or_queue_now(app, daemon, track).await;
-                            app.notify("Playing now!");
-                        }
-                    } else {
-                        app.search_playlist_expanded = !app.search_playlist_expanded;
-                        app.search_playlist_track_focus = false;
-                        app.search_playlist_track_selected = 0;
-                        refresh_selected_search_playlist(app);
-                    }
+                } else {
+                    app.search_playlist_expanded = !app.search_playlist_expanded;
+                    app.search_playlist_track_focus = false;
+                    app.search_playlist_track_selected = 0;
+                    refresh_selected_search_playlist(app);
                 }
             }
-        }
+        },
         KeyCode::Right | KeyCode::Char('l') => {
             if app.search_section == SearchSection::Playlists {
                 if app.search_playlist_expanded && app.search_playlist_track_focus {
@@ -637,45 +633,43 @@ async fn handle_search_normal(
                 refresh_selected_search_playlist(app);
             }
         }
-        KeyCode::Char('a') => {
-            match app.search_section {
-                SearchSection::Tracks => {
-                    if let Some(track) = app.selected_search_track().cloned() {
+        KeyCode::Char('a') => match app.search_section {
+            SearchSection::Tracks => {
+                if let Some(track) = app.selected_search_track().cloned() {
+                    let name = track.title.clone();
+                    let _ = daemon.send(&Request::AddToQueue(track)).await;
+                    app.notify(format!("Added to queue: {name}"));
+                }
+            }
+            SearchSection::Playlists => {
+                if app.search_playlist_expanded && app.search_playlist_track_focus {
+                    if let Some(track) = app
+                        .search_playlist_tracks
+                        .get(app.search_playlist_track_selected)
+                        .cloned()
+                    {
                         let name = track.title.clone();
                         let _ = daemon.send(&Request::AddToQueue(track)).await;
                         app.notify(format!("Added to queue: {name}"));
                     }
-                }
-                SearchSection::Playlists => {
-                    if app.search_playlist_expanded && app.search_playlist_track_focus {
-                        if let Some(track) = app
-                            .search_playlist_tracks
-                            .get(app.search_playlist_track_selected)
-                            .cloned()
-                        {
-                            let name = track.title.clone();
-                            let _ = daemon.send(&Request::AddToQueue(track)).await;
-                            app.notify(format!("Added to queue: {name}"));
+                } else if let Some(playlist) = app.selected_search_playlist().cloned() {
+                    let playlist_name = playlist.title.clone();
+                    match daemon
+                        .send(&Request::AddYoutubePlaylistToQueue(playlist.url.clone()))
+                        .await
+                    {
+                        Ok(Response::Ok) => {
+                            app.notify(format!("Playlist added to queue: {playlist_name}"));
                         }
-                    } else if let Some(playlist) = app.selected_search_playlist().cloned() {
-                        let playlist_name = playlist.title.clone();
-                        match daemon
-                            .send(&Request::AddYoutubePlaylistToQueue(playlist.url.clone()))
-                            .await
-                        {
-                            Ok(Response::Ok) => {
-                                app.notify(format!("Playlist added to queue: {playlist_name}"));
-                            }
-                            Ok(Response::Error(e)) => {
-                                app.notify(format!("Failed to add playlist: {e}"));
-                            }
-                            Ok(_) => {}
-                            Err(e) => app.notify(format!("Failed to add playlist: {e}")),
+                        Ok(Response::Error(e)) => {
+                            app.notify(format!("Failed to add playlist: {e}"));
                         }
+                        Ok(_) => {}
+                        Err(e) => app.notify(format!("Failed to add playlist: {e}")),
                     }
                 }
             }
-        }
+        },
         _ => {}
     }
     Ok(())
@@ -929,7 +923,9 @@ async fn handle_playlist_list(
                         let _ = daemon.send(&Request::SavePlaylist(updated)).await;
                         app.notify(format!("Track removed from playlist '{name}'"));
                     }
-                    if app.playlist_track_selected >= app.playlist_tracks.len() && app.playlist_track_selected > 0 {
+                    if app.playlist_track_selected >= app.playlist_tracks.len()
+                        && app.playlist_track_selected > 0
+                    {
                         app.playlist_track_selected -= 1;
                     }
                 }
@@ -942,9 +938,7 @@ async fn handle_playlist_list(
         }
         KeyCode::Char('r') => {
             // Refresh playlist list
-            if let Ok(Response::Playlists(names)) =
-                daemon.send(&Request::ListPlaylists).await
-            {
+            if let Ok(Response::Playlists(names)) = daemon.send(&Request::ListPlaylists).await {
                 app.playlist_names = names;
                 app.playlist_selected = app
                     .playlist_selected
@@ -981,9 +975,7 @@ async fn handle_playlist_name_input(
                 app.input_mode = InputMode::Normal;
 
                 // Refresh playlist list
-                if let Ok(Response::Playlists(names)) =
-                    daemon.send(&Request::ListPlaylists).await
-                {
+                if let Ok(Response::Playlists(names)) = daemon.send(&Request::ListPlaylists).await {
                     app.playlist_names = names;
                 }
             }
@@ -1114,8 +1106,14 @@ async fn handle_library_grouped(
 ) -> Result<()> {
     let groups = library_current_groups(app);
     let group_count = groups.len();
-    let group_sel = app.library_group_selected.min(group_count.saturating_sub(1));
-    let track_count = if group_count > 0 { groups[group_sel].1.len() } else { 0 };
+    let group_sel = app
+        .library_group_selected
+        .min(group_count.saturating_sub(1));
+    let track_count = if group_count > 0 {
+        groups[group_sel].1.len()
+    } else {
+        0
+    };
 
     match key.code {
         KeyCode::Down | KeyCode::Char('j') => {
@@ -1233,10 +1231,7 @@ fn library_filtered_track_count(app: &App) -> usize {
         .count()
 }
 
-fn library_get_filtered_track(
-    app: &App,
-    index: usize,
-) -> Option<&mutui_common::Track> {
+fn library_get_filtered_track(app: &App, index: usize) -> Option<&mutui_common::Track> {
     if app.library_filter.is_empty() {
         return app.library_tracks.get(index);
     }
@@ -1251,11 +1246,7 @@ fn library_get_filtered_track(
         .nth(index)
 }
 
-async fn play_or_queue_now(
-    app: &mut App,
-    daemon: &mut DaemonClient,
-    track: mutui_common::Track,
-) {
+async fn play_or_queue_now(app: &mut App, daemon: &mut DaemonClient, track: mutui_common::Track) {
     if app.status.queue.is_empty() {
         let _ = daemon.send(&Request::AddToQueue(track)).await;
     } else {
@@ -1313,7 +1304,10 @@ async fn handle_library_folder_input(
         KeyCode::Enter => {
             if !app.library_folder_input.is_empty() {
                 let folder = app.library_folder_input.clone();
-                match daemon.send(&Request::AddLibraryFolder(folder.clone())).await {
+                match daemon
+                    .send(&Request::AddLibraryFolder(folder.clone()))
+                    .await
+                {
                     Ok(Response::LibraryFolders(folders)) => {
                         app.library_folders = folders;
                         app.notify(format!("Added folder: {folder}"));
@@ -1341,8 +1335,7 @@ async fn handle_library_folder_input(
         KeyCode::Backspace => {
             if app.library_folder_cursor > 0 {
                 app.library_folder_cursor -= 1;
-                app.library_folder_input
-                    .remove(app.library_folder_cursor);
+                app.library_folder_input.remove(app.library_folder_cursor);
             }
         }
         KeyCode::Left => {
@@ -1385,7 +1378,13 @@ fn open_track_external(app: &mut App, track: &mutui_common::Track) {
         return;
     };
 
-    match std::process::Command::new("xdg-open")
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+
+    match std::process::Command::new(opener)
         .arg(&target)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

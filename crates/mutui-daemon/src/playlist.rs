@@ -11,7 +11,13 @@ fn playlist_path(name: &str) -> PathBuf {
     // Sanitize name to avoid path traversal
     let safe_name: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     playlists_dir().join(format!("{safe_name}.json"))
 }
@@ -40,8 +46,8 @@ pub fn list() -> Result<Vec<String>> {
 
 pub fn load(name: &str) -> Result<Playlist> {
     let path = playlist_path(name);
-    let data = std::fs::read_to_string(&path)
-        .with_context(|| format!("Playlist '{}' not found", name))?;
+    let data =
+        std::fs::read_to_string(&path).with_context(|| format!("Playlist '{}' not found", name))?;
     let playlist: Playlist = serde_json::from_str(&data)?;
     Ok(playlist)
 }
@@ -50,7 +56,11 @@ pub fn save(playlist: &Playlist) -> Result<()> {
     let path = playlist_path(&playlist.name);
     let data = serde_json::to_string_pretty(playlist)?;
     std::fs::write(&path, data)?;
-    info!("Saved playlist '{}' with {} tracks", playlist.name, playlist.tracks.len());
+    info!(
+        "Saved playlist '{}' with {} tracks",
+        playlist.name,
+        playlist.tracks.len()
+    );
     Ok(())
 }
 

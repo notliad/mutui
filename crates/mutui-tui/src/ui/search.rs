@@ -7,7 +7,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // search input
-            Constraint::Min(3),   // results
+            Constraint::Min(3),    // results
         ])
         .split(area);
 
@@ -59,18 +59,16 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect) {
         line.push(Span::raw(searching_indicator));
     }
 
-    let input = Paragraph::new(Line::from(line))
-        .style(input_style)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(if app.input_mode == InputMode::Search {
-                    Color::Cyan
-                } else {
-                    Color::DarkGray
-                }))
-                .title(" Search "),
-        );
+    let input = Paragraph::new(Line::from(line)).style(input_style).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if app.input_mode == InputMode::Search {
+                Color::Cyan
+            } else {
+                Color::DarkGray
+            }))
+            .title(" Search "),
+    );
 
     frame.render_widget(input, area);
 
@@ -119,11 +117,13 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(if app.search_section == SearchSection::Tracks {
-                        Color::Cyan
-                    } else {
-                        Color::DarkGray
-                    }))
+                    .border_style(Style::default().fg(
+                        if app.search_section == SearchSection::Tracks {
+                            Color::Cyan
+                        } else {
+                            Color::DarkGray
+                        },
+                    ))
                     .title(" Results "),
             );
         frame.render_widget(p, area);
@@ -145,7 +145,10 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
                 .unwrap_or_default();
 
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{:2}. ", i + 1), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{:2}. ", i + 1),
+                    Style::default().fg(Color::DarkGray),
+                ),
                 Span::styled(track.title.as_str(), Style::default().fg(Color::White)),
                 Span::raw(" "),
                 Span::styled(track.artist.as_str(), Style::default().fg(Color::DarkGray)),
@@ -163,11 +166,13 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if app.search_section == SearchSection::Tracks {
-                    Color::Cyan
-                } else {
-                    Color::DarkGray
-                }))
+                .border_style(
+                    Style::default().fg(if app.search_section == SearchSection::Tracks {
+                        Color::Cyan
+                    } else {
+                        Color::DarkGray
+                    }),
+                )
                 .title(" Results "),
         )
         .highlight_style(
@@ -194,11 +199,13 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(if app.search_section == SearchSection::Playlists {
-                        Color::Cyan
-                    } else {
-                        Color::DarkGray
-                    }))
+                    .border_style(Style::default().fg(
+                        if app.search_section == SearchSection::Playlists {
+                            Color::Cyan
+                        } else {
+                            Color::DarkGray
+                        },
+                    ))
                     .title(" Playlists "),
             );
         frame.render_widget(p, area);
@@ -238,7 +245,9 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(
                 playlist.title.as_str(),
                 if is_active_selection {
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Gray)
                 },
@@ -287,7 +296,8 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
             }
 
             if app.search_playlist_track_focus {
-                selected_row = app.search_playlist_selected + 1 + app.search_playlist_track_selected;
+                selected_row =
+                    app.search_playlist_selected + 1 + app.search_playlist_track_selected;
             }
         }
     }
@@ -300,11 +310,13 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if app.search_section == SearchSection::Playlists {
-                    Color::Cyan
-                } else {
-                    Color::DarkGray
-                }))
+                .border_style(Style::default().fg(
+                    if app.search_section == SearchSection::Playlists {
+                        Color::Cyan
+                    } else {
+                        Color::DarkGray
+                    },
+                ))
                 .title(" Playlists "),
         )
         .highlight_style(

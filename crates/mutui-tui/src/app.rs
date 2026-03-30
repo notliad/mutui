@@ -257,8 +257,10 @@ impl App {
         if self.status.queue.is_empty() {
             None
         } else {
-            Some(self.queue_selected.min(self.status.queue.len().saturating_sub(1)))
+            Some(
+                self.queue_selected
+                    .min(self.status.queue.len().saturating_sub(1)),
+            )
         }
     }
-
 }

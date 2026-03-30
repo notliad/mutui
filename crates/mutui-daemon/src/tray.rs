@@ -70,7 +70,11 @@ impl ksni::Tray for MutuiTray {
                 }
             }
         }
-        vec![ksni::Icon { width: size, height: size, data }]
+        vec![ksni::Icon {
+            width: size,
+            height: size,
+            data,
+        }]
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {

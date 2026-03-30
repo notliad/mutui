@@ -40,9 +40,13 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         };
 
         let prefix_style = if is_autoplay {
-            Style::default().fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::LightBlue)
+                .add_modifier(Modifier::BOLD)
         } else if current {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
         } else {
@@ -51,12 +55,16 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 
         let title_style = if is_autoplay {
             if selected {
-                Style::default().fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::LightBlue)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::LightBlue)
             }
         } else if current {
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
         } else {

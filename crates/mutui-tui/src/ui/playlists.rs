@@ -46,7 +46,9 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(
                 name.as_str(),
                 if i == app.playlist_selected {
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Gray)
                 },

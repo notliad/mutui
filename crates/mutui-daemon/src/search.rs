@@ -3,7 +3,7 @@ use log::{debug, info, warn};
 use mutui_common::Track;
 use serde::Deserialize;
 use tokio::process::Command;
-use tokio::time::{Duration, timeout};
+use tokio::time::{timeout, Duration};
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
@@ -228,9 +228,8 @@ pub async fn search_playlists(query: &str, max_results: usize) -> Result<Vec<Tra
 
     // YouTube `sp=EgIQAw%3D%3D` applies the "Playlist" filter in search.
     let encoded_query = url_encode_query(query);
-    let search_url = format!(
-        "https://www.youtube.com/results?search_query={encoded_query}&sp=EgIQAw%3D%3D"
-    );
+    let search_url =
+        format!("https://www.youtube.com/results?search_query={encoded_query}&sp=EgIQAw%3D%3D");
 
     let output = run_yt_dlp(
         &[
@@ -254,7 +253,10 @@ pub async fn search_playlists(query: &str, max_results: usize) -> Result<Vec<Tra
     Ok(playlists)
 }
 
-pub async fn load_youtube_playlist(playlist_url_or_id: &str, max_tracks: usize) -> Result<Vec<Track>> {
+pub async fn load_youtube_playlist(
+    playlist_url_or_id: &str,
+    max_tracks: usize,
+) -> Result<Vec<Track>> {
     let target = if playlist_url_or_id.starts_with("http://")
         || playlist_url_or_id.starts_with("https://")
     {

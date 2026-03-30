@@ -1,8 +1,6 @@
 use anyhow::Result;
 use log::{debug, error, info};
-use mutui_common::{
-    encode_message, DaemonStatus, PlayerState, Request, Response, Track,
-};
+use mutui_common::{encode_message, DaemonStatus, PlayerState, Request, Response, Track};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};

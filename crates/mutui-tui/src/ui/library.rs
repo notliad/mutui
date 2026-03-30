@@ -16,11 +16,7 @@ fn filtered_tracks<'a>(tracks: &'a [Track], filter: &str) -> Vec<&'a Track> {
             .filter(|t| {
                 t.title.to_lowercase().contains(&f)
                     || t.artist.to_lowercase().contains(&f)
-                    || t.album
-                        .as_deref()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .contains(&f)
+                    || t.album.as_deref().unwrap_or("").to_lowercase().contains(&f)
             })
             .collect()
     }
@@ -118,7 +114,11 @@ fn render_folders(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let modes = [LibraryMode::ByArtist, LibraryMode::ByAlbum, LibraryMode::AllTracks];
+    let modes = [
+        LibraryMode::ByArtist,
+        LibraryMode::ByAlbum,
+        LibraryMode::AllTracks,
+    ];
     let mut spans: Vec<Span> = vec![Span::raw("  ")];
     for (i, mode) in modes.iter().enumerate() {
         if i > 0 {
@@ -127,7 +127,9 @@ fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
         if *mode == app.library_mode {
             spans.push(Span::styled(
                 format!("▶ {}", mode.label()),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ));
         } else {
             spans.push(Span::styled(
@@ -138,7 +140,10 @@ fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     if app.input_mode == InputMode::LibraryFilter || !app.library_filter.is_empty() {
-        spans.push(Span::styled("    Filter: ", Style::default().fg(Color::Yellow)));
+        spans.push(Span::styled(
+            "    Filter: ",
+            Style::default().fg(Color::Yellow),
+        ));
         spans.push(Span::styled(
             app.library_filter.clone(),
             Style::default().fg(Color::White),
@@ -197,7 +202,10 @@ fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("")
             };
             let content = Line::from(vec![
-                Span::styled(format!("{:3}. ", i + 1), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{:3}. ", i + 1),
+                    Style::default().fg(Color::DarkGray),
+                ),
                 Span::styled(track.title.as_str(), Style::default().fg(Color::White)),
                 Span::raw("  "),
                 Span::styled(track.artist.as_str(), Style::default().fg(Color::Cyan)),
@@ -273,7 +281,9 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
         .constraints([Constraint::Percentage(32), Constraint::Percentage(68)])
         .split(area);
 
-    let group_sel = app.library_group_selected.min(groups.len().saturating_sub(1));
+    let group_sel = app
+        .library_group_selected
+        .min(groups.len().saturating_sub(1));
     let selected_group = &groups[group_sel];
     let group_tracks = &selected_group.1;
     let track_sel = app
@@ -283,7 +293,11 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
     // Left panel
     {
         let focused = !app.library_group_focus;
-        let border_color = if focused { Color::Cyan } else { Color::DarkGray };
+        let border_color = if focused {
+            Color::Cyan
+        } else {
+            Color::DarkGray
+        };
         let items: Vec<ListItem> = groups
             .iter()
             .map(|(name, tracks)| {
@@ -322,7 +336,11 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
     // Right panel
     {
         let focused = app.library_group_focus;
-        let border_color = if focused { Color::Cyan } else { Color::DarkGray };
+        let border_color = if focused {
+            Color::Cyan
+        } else {
+            Color::DarkGray
+        };
 
         if group_tracks.is_empty() {
             let p = Paragraph::new("No tracks")
@@ -381,11 +399,8 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
                 )
                 .highlight_symbol("▸ ");
 
-            let mut state = ListState::default().with_selected(if focused {
-                Some(track_sel)
-            } else {
-                None
-            });
+            let mut state =
+                ListState::default().with_selected(if focused { Some(track_sel) } else { None });
             frame.render_stateful_widget(list, cols[1], &mut state);
         }
     }
