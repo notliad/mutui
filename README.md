@@ -16,14 +16,6 @@ Features:
 - Rust toolchain (`cargo`) to build
 
 Install deps:
-### Install via AUR (Arch Linux)
-
-```bash
-yay -S mutui
-# or
-paru -S mutui
-```
-
 ### Linux dependencies (manual build)
 
 ```bash
