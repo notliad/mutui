@@ -5,8 +5,8 @@
 
 Features:
 - Search tracks and playlists on Youtube;
-- Local music library folders (supports Artists & Albums);
-- Queue and local playlists;
+- Local music library folders (filter by artists, albums and tracks);
+- Local queue and playlists;
 - Background playback;
 - Vim like navigation;
 
@@ -38,7 +38,7 @@ chmod +x scripts/install-desktop-entry.sh
 ./scripts/install-desktop-entry.sh
 ```
 
-This installs binaries and a desktop entry in your user environment.
+This build and installs binaries and add an desktop entry in your user environment.
 
 or build yourself:
 
