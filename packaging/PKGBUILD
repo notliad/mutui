@@ -1,0 +1,46 @@
+# Maintainer: notliad <dailton.rcf@gmail.com>
+pkgname=mutui
+pkgver=0.3.0
+pkgrel=1
+pkgdesc="Lightweight terminal-based music player for YouTube and local libraries"
+url="https://github.com/notliad/mutui"
+arch=('x86_64' 'aarch64')
+license=('MIT')
+depends=('mpv' 'yt-dlp')
+makedepends=('cargo' 'libmpv')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release --bin mutui --bin mutuid
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+
+    install -Dm0755 "target/release/mutui"  "$pkgdir/usr/bin/mutui"
+    install -Dm0755 "target/release/mutuid" "$pkgdir/usr/bin/mutuid"
+
+    install -Dm0644 "packaging/mutui.desktop" \
+        "$pkgdir/usr/share/applications/mutui.desktop"
+
+    if [[ -f "assets/icon.png" ]]; then
+        install -Dm0644 "assets/icon.png" \
+            "$pkgdir/usr/share/icons/hicolor/256x256/apps/mutui.png"
+    fi
+
+    install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm0644 LICENSE.LGPL-2.1 \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE.LGPL-2.1"
+    install -Dm0644 THIRD-PARTY-LICENSES.txt \
+        "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-LICENSES.txt"
+}
