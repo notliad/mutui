@@ -10,13 +10,26 @@ Features:
 - Background playback;
 - Vim like navigation;
 
+## Quick Install
+
+```bash
+chmod +x scripts/install.sh
+./scripts/install.sh
+```
+
+This build and installs binaries and dependecies.
+
+If you want tray feature:
+```bash
+chmod +x scripts/install.sh --with-tray
+./scripts/install.sh
+```
+
+## Manual build
+
 ## Requirements
 
 - `yt-dlp`
-- Rust toolchain (`cargo`) to build
-
-Install deps:
-### Linux dependencies (manual build)
 
 ```bash
 # Arch Linux
@@ -28,19 +41,14 @@ sudo apt install yt-dlp
 # Fedora
 sudo dnf install yt-dlp
 ```
-
-## Quick Start
-
-Desktop Install
+- Rust toolchain (`cargo`) to build
 
 ```bash
-chmod +x scripts/install-desktop-entry.sh
-./scripts/install-desktop-entry.sh
+curl https://sh.rustup.rs -sSf | sh
+
+source $HOME/.cargo/env
 ```
-
-This build and installs binaries and add an desktop entry in your user environment.
-
-or build yourself:
+- Then build
 
 ```bash
 cargo build --release
