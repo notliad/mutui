@@ -1,9 +1,11 @@
 # mutui
+
 `mutui` is a lightweight terminal based music player for Linux.
 
 ![mutui](https://github.com/user-attachments/assets/e3ebdd86-3bad-42f4-a6a4-04a876d434ed)
 
 Features:
+
 - Search tracks and playlists on Youtube;
 - Local music library folders (filter by artists, albums and tracks);
 - Local queue and playlists;
@@ -13,13 +15,15 @@ Features:
 ## Quick Install
 
 ```bash
+git clone https://github.com/notliad/mutui.git
 chmod +x scripts/install.sh
 ./scripts/install.sh
 ```
 
-This build and installs binaries and dependecies.
+This build and installs binaries and dependencies.
 
 If you want tray feature:
+
 ```bash
 chmod +x scripts/install.sh --with-tray
 ./scripts/install.sh
@@ -41,6 +45,7 @@ sudo apt install yt-dlp
 # Fedora
 sudo dnf install yt-dlp
 ```
+
 - Rust toolchain (`cargo`) to build
 
 ```bash
@@ -48,6 +53,7 @@ curl https://sh.rustup.rs -sSf | sh
 
 source $HOME/.cargo/env
 ```
+
 - Then build
 
 ```bash
@@ -61,6 +67,7 @@ cargo build --release
 - `?`: show full shortcuts help
 
 Search tab:
+
 - `/`: type query
 - `Enter`: run one search that returns tracks (top) and playlists (bottom)
 - `Ctrl+J` / `Ctrl+K`: jump between track and playlist sections
@@ -70,24 +77,27 @@ Search tab:
 - `a`: add selected track result to queue, or add all tracks from selected playlist
 
 Library tab:
+
 - `f`: add folder to local library (use absolute path, ex: `/home/user/Music`)
 - `r`: rescan library
 - `Enter`: play selected local track
 - `a`: add selected local track to queue
 
 Global:
+
 - `Space`: play/pause
 - `n` / `p`: next/previous
 - `o`: open current track externally
-    - YouTube track -> browser
-    - Local track -> default local player (`xdg-open`)
+- YouTube track -> browser
+- Local track -> default local player (`xdg-open`)
 
 ## Data Location
 
 - Library config: `~/.local/share/mutui/library.json`
 - Playlists: `~/.local/share/mutui/playlists/*.json`
 
-## Tech notes:
+## Tech notes
+
 - `mutui` starts `mutuid` automatically if needed.
 - Pulse loopback routing is disabled by default to avoid startup audio glitches. Enable it with `MUTUI_ENABLE_AUDIO_ROUTING=1 mutui` if you need the custom sink path.
 
