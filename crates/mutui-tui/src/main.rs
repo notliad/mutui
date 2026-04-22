@@ -3,10 +3,10 @@ mod client;
 mod ui;
 
 use anyhow::Result;
-use app::{App, HelpPopupPage, InputMode, LibraryMode, PlaylistView, SearchSection, View};
+use app::{App, HelpPopupPage, InputMode, LibraryMode, PlaylistView, PodcastSection, SearchSection, View};
 use client::DaemonClient;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
-use mutui_common::{Playlist, Request, Response};
+use mutui_common::{Playlist, PodcastChannel, Request, Response};
 use ratatui::prelude::*;
 use std::time::Duration;
 use tokio::task::JoinHandle;
@@ -48,6 +48,8 @@ async fn run(
     let mut app = App::new();
     let mut search_task: Option<JoinHandle<anyhow::Result<(Response, Response)>>> = None;
     let mut playlist_tracks_task: Option<JoinHandle<anyhow::Result<(String, Response)>>> = None;
+    let mut podcast_search_task: Option<JoinHandle<anyhow::Result<Response>>> = None;
+    let mut podcast_episodes_task: Option<JoinHandle<anyhow::Result<(String, Response)>>> = None;
 
     // Initial status fetch
     if let Ok(Response::Status(status)) = daemon.send(&Request::GetStatus).await {
@@ -61,6 +63,10 @@ async fn run(
     // Initial library folders
     if let Ok(Response::LibraryFolders(folders)) = daemon.send(&Request::ListLibraryFolders).await {
         app.library_folders = folders;
+    }
+    // Initial followed podcasts
+    if let Ok(Response::PodcastChannels(channels)) = daemon.send(&Request::ListFollowedPodcasts).await {
+        app.podcast_followed = channels;
     }
 
 
@@ -190,6 +196,86 @@ async fn run(
                 playlist_tracks_task = Some(tokio::spawn(async move {
                     let resp = crate::client::send_once(Request::GetYoutubePlaylistTracks(url)).await?;
                     Ok((id, resp))
+                }));
+            }
+        }
+
+        // Podcast search task
+        if podcast_search_task
+            .as_ref()
+            .map(|t| t.is_finished())
+            .unwrap_or(false)
+        {
+            if let Some(task) = podcast_search_task.take() {
+                app.podcast_searching = false;
+                match task.await {
+                    Ok(Ok(Response::PodcastChannels(channels))) => {
+                        app.podcast_last_error = None;
+                        app.podcast_search_results = channels;
+                        app.podcast_result_selected = 0;
+                        app.podcast_section = PodcastSection::Results;
+                    }
+                    Ok(Ok(Response::Error(e))) => {
+                        app.podcast_last_error = Some(e.clone());
+                        app.notify(format!("Podcast search error: {e}"));
+                    }
+                    Ok(Err(e)) => {
+                        let msg = e.to_string();
+                        app.podcast_last_error = Some(msg.clone());
+                        app.notify(format!("Podcast search error: {msg}"));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if podcast_search_task.is_none() {
+            if let Some(query) = app.pending_podcast_search.take() {
+                app.podcast_searching = true;
+                app.podcast_last_error = None;
+                podcast_search_task = Some(tokio::spawn(async move {
+                    crate::client::send_once(Request::SearchPodcasts(query)).await
+                }));
+            }
+        }
+
+        // Podcast episode fetch task
+        if podcast_episodes_task
+            .as_ref()
+            .map(|t| t.is_finished())
+            .unwrap_or(false)
+        {
+            if let Some(task) = podcast_episodes_task.take() {
+                app.podcast_episodes_loading = false;
+                match task.await {
+                    Ok(Ok((feed_url, Response::PodcastEpisodes(episodes)))) => {
+                        if app.podcast_selected_feed.as_deref() == Some(&feed_url) {
+                            app.podcast_last_error = None;
+                            app.podcast_episodes = episodes;
+                            app.podcast_episode_selected = 0;
+                        }
+                    }
+                    Ok(Ok((_, Response::Error(e)))) => {
+                        app.podcast_last_error = Some(e.clone());
+                        app.notify(format!("Failed to load episodes: {e}"));
+                    }
+                    Ok(Err(e)) => {
+                        let msg = e.to_string();
+                        app.podcast_last_error = Some(msg.clone());
+                        app.notify(format!("Failed to load episodes: {msg}"));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if podcast_episodes_task.is_none() {
+            if let Some(feed_url) = app.pending_podcast_episodes.take() {
+                app.podcast_episodes_loading = true;
+                podcast_episodes_task = Some(tokio::spawn(async move {
+                    let feed_for_key = feed_url.clone();
+                    let resp = crate::client::send_once(Request::GetPodcastEpisodes(feed_url)).await?;
+                    Ok((feed_for_key, resp))
                 }));
             }
         }
@@ -330,6 +416,16 @@ async fn handle_key(
         InputMode::Normal => {}
     }
 
+    // Podcast search input is tracked separately (not an InputMode variant)
+    if app.view == View::Podcasts && app.podcast_input_mode {
+        handle_podcast_search_input(app, key);
+        return Ok(());
+    }
+    if app.view == View::Podcasts && app.podcast_episode_filter_mode {
+        handle_podcast_episode_filter_input(app, key);
+        return Ok(());
+    }
+
     match key.code {
         // Quit
         KeyCode::Char('q') => app.should_quit = true,
@@ -376,6 +472,9 @@ async fn handle_key(
         KeyCode::Char('3') => {
             app.view = View::Library;
             refresh_library(app, daemon).await;
+        }
+        KeyCode::Char('4') => {
+            app.view = View::Podcasts;
         }
 
         // Global playback controls
@@ -453,6 +552,11 @@ async fn handle_key(
                 app.notify("Playing selected queue track");
             }
         }
+        KeyCode::Char('R') if !matches!(app.view, View::Library) => {
+            let _ = daemon.send(&Request::ClearQueue).await;
+            app.queue_selected = 0;
+            app.notify("Queue cleared");
+        }
         KeyCode::Char('+') | KeyCode::Char('=') => {
             let vol = (app.status.volume + 5).min(150);
             let _ = daemon.send(&Request::SetVolume(vol)).await;
@@ -478,6 +582,7 @@ async fn handle_key(
             View::Search => handle_search_normal(app, daemon, key).await?,
             View::Playlists => handle_playlists(app, daemon, key).await?,
             View::Library => handle_library(app, daemon, key).await?,
+            View::Podcasts => handle_podcasts(app, daemon, key).await?,
         },
     }
 
@@ -888,7 +993,25 @@ async fn handle_playlist_list(
                 refresh_selected_playlist(app, daemon).await;
             }
         }
-        KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+        KeyCode::Enter => {
+            if app.playlist_track_focus {
+                if let Some(track) = app.playlist_tracks.get(app.playlist_track_selected).cloned() {
+                    play_or_queue_now(app, daemon, track).await;
+                    app.notify("Playing now!");
+                }
+            } else if !app.playlist_expanded {
+                app.playlist_expanded = true;
+                app.playlist_track_focus = false;
+                app.playlist_track_selected = 0;
+                refresh_selected_playlist(app, daemon).await;
+            } else {
+                app.playlist_expanded = false;
+                app.playlist_track_focus = false;
+                app.playlist_track_selected = 0;
+                refresh_selected_playlist(app, daemon).await;
+            }
+        }
+        KeyCode::Right | KeyCode::Char('l') => {
             if !app.playlist_expanded {
                 app.playlist_expanded = true;
                 app.playlist_track_focus = false;
@@ -910,8 +1033,13 @@ async fn handle_playlist_list(
             }
         }
         KeyCode::Char('a') => {
-            // Load playlist into queue
-            if let Some(name) = app.playlist_names.get(app.playlist_selected).cloned() {
+            if app.playlist_track_focus {
+                if let Some(track) = app.playlist_tracks.get(app.playlist_track_selected).cloned() {
+                    let name = track.title.clone();
+                    let _ = daemon.send(&Request::AddToQueue(track)).await;
+                    app.notify(format!("Added to queue: {name}"));
+                }
+            } else if let Some(name) = app.playlist_names.get(app.playlist_selected).cloned() {
                 let _ = daemon.send(&Request::LoadPlaylist(name.clone())).await;
                 app.notify(format!("Playlist '{name}' loaded into queue"));
             }
@@ -1249,6 +1377,271 @@ fn library_get_filtered_track(
                 || t.album.as_deref().unwrap_or("").to_lowercase().contains(&f)
         })
         .nth(index)
+}
+
+// --- Podcasts View ---
+
+async fn handle_podcasts(
+    app: &mut App,
+    daemon: &mut DaemonClient,
+    key: event::KeyEvent,
+) -> Result<()> {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    match key.code {
+        // Section jumps (mirrors search tab Ctrl+j/k)
+        KeyCode::Char('j') if ctrl => {
+            if !app.podcast_episode_focus {
+                app.podcast_section = PodcastSection::Followed;
+            }
+        }
+        KeyCode::Char('k') if ctrl => {
+            if !app.podcast_episode_focus && !app.podcast_search_results.is_empty() {
+                app.podcast_section = PodcastSection::Results;
+            }
+        }
+        KeyCode::Char('/') => {
+            app.podcast_input_mode = true;
+            app.podcast_episode_focus = false;
+        }
+        KeyCode::Esc => {
+            if app.podcast_episode_filter_mode {
+                app.podcast_episode_filter_mode = false;
+            } else if app.podcast_episode_focus {
+                app.podcast_episode_focus = false;
+            } else if !app.podcast_search_results.is_empty() {
+                app.podcast_search_results.clear();
+                app.podcast_result_selected = 0;
+                app.podcast_section = PodcastSection::Followed;
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            if app.podcast_episode_focus {
+                let len = filtered_episodes(app).len();
+                if len > 0 {
+                    app.podcast_episode_selected =
+                        (app.podcast_episode_selected + 1).min(len - 1);
+                }
+            } else {
+                match app.podcast_section {
+                    PodcastSection::Results => {
+                        let len = app.podcast_search_results.len();
+                        if len == 0 || app.podcast_result_selected + 1 >= len {
+                            if !app.podcast_followed.is_empty() {
+                                app.podcast_section = PodcastSection::Followed;
+                            }
+                        } else {
+                            app.podcast_result_selected += 1;
+                        }
+                    }
+                    PodcastSection::Followed => {
+                        let len = app.podcast_followed.len();
+                        if len > 0 {
+                            app.podcast_followed_selected =
+                                (app.podcast_followed_selected + 1).min(len - 1);
+                        }
+                    }
+                }
+            }
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            if app.podcast_episode_focus {
+                app.podcast_episode_selected = app.podcast_episode_selected.saturating_sub(1);
+            } else {
+                match app.podcast_section {
+                    PodcastSection::Results => {
+                        app.podcast_result_selected =
+                            app.podcast_result_selected.saturating_sub(1);
+                    }
+                    PodcastSection::Followed => {
+                        if app.podcast_followed_selected == 0 {
+                            if !app.podcast_search_results.is_empty() {
+                                app.podcast_section = PodcastSection::Results;
+                            }
+                        } else {
+                            app.podcast_followed_selected -= 1;
+                        }
+                    }
+                }
+            }
+        }
+        KeyCode::Right | KeyCode::Char('l') => {
+            if !app.podcast_episode_focus && !app.podcast_episodes.is_empty() {
+                app.podcast_episode_focus = true;
+            }
+        }
+        KeyCode::Left | KeyCode::Char('h') => {
+            app.podcast_episode_focus = false;
+        }
+        KeyCode::Enter => {
+            if app.podcast_episode_focus {
+                if let Some(ep) = filtered_episodes(app)
+                    .get(app.podcast_episode_selected)
+                    .cloned()
+                    .cloned()
+                {
+                    let track = episode_to_track(&ep);
+                    play_or_queue_now(app, daemon, track).await;
+                    app.notify("Playing now!");
+                }
+            } else if let Some(ch) = selected_podcast_channel(app).cloned() {
+                app.podcast_selected_feed = Some(ch.feed_url.clone());
+                app.podcast_episodes.clear();
+                app.podcast_episode_selected = 0;
+                app.podcast_episode_filter.clear();
+                app.podcast_episode_filter_cursor = 0;
+                app.podcast_episode_focus = false;
+                app.pending_podcast_episodes = Some(ch.feed_url);
+            }
+        }
+        KeyCode::Char('a') => {
+            if app.podcast_episode_focus {
+                if let Some(ep) = filtered_episodes(app)
+                    .get(app.podcast_episode_selected)
+                    .cloned()
+                    .cloned()
+                {
+                    let track = episode_to_track(&ep);
+                    let title = track.title.clone();
+                    let _ = daemon.send(&Request::AddToQueue(track)).await;
+                    app.notify(format!("Added to queue: {title}"));
+                }
+            }
+        }
+        KeyCode::Char('f') => {
+            if app.podcast_episode_focus {
+                // Enter filter mode for the episode list
+                app.podcast_episode_filter_mode = true;
+            } else {
+                // Follow / unfollow the selected channel
+                if let Some(ch) = selected_podcast_channel(app).cloned() {
+                    let already_followed = app
+                        .podcast_followed
+                        .iter()
+                        .any(|f| f.feed_url == ch.feed_url);
+                    if already_followed {
+                        match daemon.send(&Request::UnfollowPodcast(ch.feed_url.clone())).await {
+                            Ok(Response::PodcastChannels(followed)) => {
+                                app.podcast_followed = followed;
+                                app.notify(format!("Unfollowed: {}", ch.title));
+                            }
+                            Ok(Response::Error(e)) => app.notify(format!("Error: {e}")),
+                            _ => {}
+                        }
+                    } else {
+                        match daemon.send(&Request::FollowPodcast(ch.clone())).await {
+                            Ok(Response::PodcastChannels(followed)) => {
+                                app.podcast_followed = followed;
+                                app.notify(format!("Following: {}", ch.title));
+                            }
+                            Ok(Response::Error(e)) => app.notify(format!("Error: {e}")),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_podcast_episode_filter_input(app: &mut App, key: event::KeyEvent) {
+    match key.code {
+        KeyCode::Esc | KeyCode::Enter => {
+            app.podcast_episode_filter_mode = false;
+        }
+        KeyCode::Char(c) => {
+            app.podcast_episode_filter
+                .insert(app.podcast_episode_filter_cursor, c);
+            app.podcast_episode_filter_cursor += 1;
+            app.podcast_episode_selected = 0;
+        }
+        KeyCode::Backspace => {
+            if app.podcast_episode_filter_cursor > 0 {
+                app.podcast_episode_filter_cursor -= 1;
+                app.podcast_episode_filter
+                    .remove(app.podcast_episode_filter_cursor);
+                app.podcast_episode_selected = 0;
+            }
+        }
+        KeyCode::Left => {
+            app.podcast_episode_filter_cursor =
+                app.podcast_episode_filter_cursor.saturating_sub(1);
+        }
+        KeyCode::Right => {
+            app.podcast_episode_filter_cursor = (app.podcast_episode_filter_cursor + 1)
+                .min(app.podcast_episode_filter.len());
+        }
+        _ => {}
+    }
+}
+
+fn filtered_episodes(app: &App) -> Vec<&mutui_common::PodcastEpisode> {
+    if app.podcast_episode_filter.is_empty() {
+        return app.podcast_episodes.iter().collect();
+    }
+    let q = app.podcast_episode_filter.to_lowercase();
+    app.podcast_episodes
+        .iter()
+        .filter(|ep| ep.title.to_lowercase().contains(&q))
+        .collect()
+}
+
+fn handle_podcast_search_input(app: &mut App, key: event::KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.podcast_input_mode = false;
+        }
+        KeyCode::Enter => {
+            if !app.podcast_search_input.is_empty() {
+                app.pending_podcast_search = Some(app.podcast_search_input.clone());
+            }
+            app.podcast_input_mode = false;
+        }
+        KeyCode::Char(c) => {
+            app.podcast_search_input
+                .insert(app.podcast_search_cursor, c);
+            app.podcast_search_cursor += 1;
+        }
+        KeyCode::Backspace => {
+            if app.podcast_search_cursor > 0 {
+                app.podcast_search_cursor -= 1;
+                app.podcast_search_input.remove(app.podcast_search_cursor);
+            }
+        }
+        KeyCode::Left => {
+            app.podcast_search_cursor = app.podcast_search_cursor.saturating_sub(1);
+        }
+        KeyCode::Right => {
+            app.podcast_search_cursor =
+                (app.podcast_search_cursor + 1).min(app.podcast_search_input.len());
+        }
+        KeyCode::Home => {
+            app.podcast_search_cursor = 0;
+        }
+        KeyCode::End => {
+            app.podcast_search_cursor = app.podcast_search_input.len();
+        }
+        _ => {}
+    }
+}
+
+fn selected_podcast_channel(app: &App) -> Option<&PodcastChannel> {
+    match app.podcast_section {
+        PodcastSection::Results => app.podcast_search_results.get(app.podcast_result_selected),
+        PodcastSection::Followed => app.podcast_followed.get(app.podcast_followed_selected),
+    }
+}
+
+fn episode_to_track(ep: &mutui_common::PodcastEpisode) -> mutui_common::Track {
+    mutui_common::Track {
+        id: ep.guid.clone(),
+        title: ep.title.clone(),
+        artist: String::new(),
+        album: None,
+        duration: ep.duration,
+        url: ep.url.clone(),
+    }
 }
 
 async fn play_or_queue_now(

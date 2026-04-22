@@ -20,6 +20,28 @@ pub struct Playlist {
     pub tracks: Vec<Track>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PodcastChannel {
+    pub id: String,
+    pub title: String,
+    pub author: String,
+    pub description: String,
+    pub image_url: Option<String>,
+    /// The RSS feed URL used to fetch episodes.
+    pub feed_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PodcastEpisode {
+    pub guid: String,
+    pub title: String,
+    pub description: String,
+    /// Direct audio stream URL.
+    pub url: String,
+    pub duration: Option<f64>,
+    pub pub_date: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PlayerState {
     Stopped,
@@ -101,6 +123,13 @@ pub enum Request {
     ListLibraryFolders,
     ScanLibrary,
 
+    // Podcasts
+    SearchPodcasts(String),
+    FollowPodcast(PodcastChannel),
+    UnfollowPodcast(String),
+    ListFollowedPodcasts,
+    GetPodcastEpisodes(String),
+
     // Status
     GetStatus,
 
@@ -117,6 +146,8 @@ pub enum Response {
     Playlist(Playlist),
     LibraryFolders(Vec<String>),
     LibraryTracks(Vec<Track>),
+    PodcastChannels(Vec<PodcastChannel>),
+    PodcastEpisodes(Vec<PodcastEpisode>),
     Error(String),
 }
 
@@ -152,6 +183,10 @@ pub fn playlists_dir() -> PathBuf {
 
 pub fn library_config_path() -> PathBuf {
     data_dir().join("library.json")
+}
+
+pub fn podcasts_config_path() -> PathBuf {
+    data_dir().join("podcasts.json")
 }
 
 // --- IPC Framing helpers ---

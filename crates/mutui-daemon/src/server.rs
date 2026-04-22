@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 use crate::library;
 use crate::mpv::MpvHandle;
 use crate::playlist;
+use crate::podcasts;
 use crate::queue::Queue;
 use crate::search;
 
@@ -210,9 +211,14 @@ impl Daemon {
             | Request::SearchPlaylists(_)
             | Request::GetYoutubePlaylistTracks(_)
             | Request::LoadYoutubePlaylist(_)
-            | Request::AddYoutubePlaylistToQueue(_) => {
+            | Request::AddYoutubePlaylistToQueue(_)
+            | Request::SearchPodcasts(_)
+            | Request::FollowPodcast(_)
+            | Request::UnfollowPodcast(_)
+            | Request::ListFollowedPodcasts
+            | Request::GetPodcastEpisodes(_) => {
                 // Handled in handle_client to avoid blocking the daemon lock
-                Response::Error("Search should be handled by handle_client".into())
+                Response::Error("This request should be handled by handle_client".into())
             }
             Request::ToggleAutoplay => {
                 self.autoplay_enabled = !self.autoplay_enabled;
@@ -445,6 +451,28 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                 }
                 Err(e) => Response::Error(e.to_string()),
             },
+            // --- Podcast requests (I/O outside lock) ---
+            Request::SearchPodcasts(query) => match podcasts::search(&query).await {
+                Ok(channels) => Response::PodcastChannels(channels),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::FollowPodcast(channel) => match podcasts::follow(channel) {
+                Ok(followed) => Response::PodcastChannels(followed),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::UnfollowPodcast(feed_url) => match podcasts::unfollow(&feed_url) {
+                Ok(followed) => Response::PodcastChannels(followed),
+                Err(e) => Response::Error(e.to_string()),
+            },
+            Request::ListFollowedPodcasts => {
+                Response::PodcastChannels(podcasts::load_followed())
+            }
+            Request::GetPodcastEpisodes(feed_url) => {
+                match podcasts::fetch_episodes(&feed_url).await {
+                    Ok(episodes) => Response::PodcastEpisodes(episodes),
+                    Err(e) => Response::Error(e.to_string()),
+                }
+            }
             other => {
                 let mut d = daemon.lock().await;
                 d.handle_request(other)
