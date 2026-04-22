@@ -25,3 +25,8 @@ ksni = "0.3"
 lofty = "0.22"
 zbus = "5.14"
 zvariant = "5.10"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+quick-xml = { version = "0.37", features = ["serialize"] }
+sha1 = "0.10"
+hmac = "0.12"
+hex = "0.4"

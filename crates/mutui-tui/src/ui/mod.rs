@@ -2,6 +2,7 @@ mod player_bar;
 mod now_playing;
 mod queue_panel;
 mod playlists;
+mod podcasts;
 mod search;
 mod library;
 
@@ -37,6 +38,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             crate::app::View::Search => search::render(frame, app, main[0]),
             crate::app::View::Playlists => playlists::render(frame, app, main[0]),
             crate::app::View::Library => library::render(frame, app, main[0]),
+            crate::app::View::Podcasts => podcasts::render(frame, app, main[0]),
         }
 
         now_playing::render(frame, app, main[1], false);
@@ -56,6 +58,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             crate::app::View::Search => search::render(frame, app, main[0]),
             crate::app::View::Playlists => playlists::render(frame, app, main[0]),
             crate::app::View::Library => library::render(frame, app, main[0]),
+            crate::app::View::Podcasts => podcasts::render(frame, app, main[0]),
         }
 
         now_playing::render(frame, app, right[0], false);

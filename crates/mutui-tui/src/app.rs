@@ -1,10 +1,11 @@
-use mutui_common::{DaemonStatus, Track};
+use mutui_common::{DaemonStatus, PodcastChannel, PodcastEpisode, Track};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
     Search,
     Playlists,
     Library,
+    Podcasts,
 }
 
 impl View {
@@ -13,26 +14,29 @@ impl View {
             Self::Search => "1 Search",
             Self::Playlists => "2 Playlists",
             Self::Library => "3 Library",
+            Self::Podcasts => "4 Podcasts",
         }
     }
 
     pub fn all() -> &'static [View] {
-        &[View::Search, View::Playlists, View::Library]
+        &[View::Search, View::Playlists, View::Library, View::Podcasts]
     }
 
     pub fn next(&self) -> View {
         match self {
             Self::Search => Self::Playlists,
             Self::Playlists => Self::Library,
-            Self::Library => Self::Search,
+            Self::Library => Self::Podcasts,
+            Self::Podcasts => Self::Search,
         }
     }
 
     pub fn prev(&self) -> View {
         match self {
-            Self::Search => Self::Library,
+            Self::Search => Self::Podcasts,
             Self::Playlists => Self::Search,
             Self::Library => Self::Playlists,
+            Self::Podcasts => Self::Library,
         }
     }
 }
@@ -82,6 +86,13 @@ pub enum SearchSection {
     #[default]
     Tracks,
     Playlists,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PodcastSection {
+    Results,
+    #[default]
+    Followed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -173,6 +184,31 @@ pub struct App {
     pub library_group_selected: usize,
     pub library_group_track_selected: usize,
     pub library_group_focus: bool,
+
+    // Podcasts
+    pub podcast_search_input: String,
+    pub podcast_search_cursor: usize,
+    pub podcast_search_results: Vec<PodcastChannel>,
+    pub podcast_searching: bool,
+    pub pending_podcast_search: Option<String>,
+    pub podcast_followed: Vec<PodcastChannel>,
+    /// None = showing search/followed list; Some(feed_url) = showing episodes
+    pub podcast_selected_feed: Option<String>,
+    pub podcast_episodes: Vec<PodcastEpisode>,
+    pub podcast_episode_selected: usize,
+    pub podcast_episodes_loading: bool,
+    pub pending_podcast_episodes: Option<String>,
+    /// Which column has focus: false = channel panel, true = episode list
+    pub podcast_episode_focus: bool,
+    pub podcast_section: PodcastSection,
+    pub podcast_result_selected: usize,
+    pub podcast_followed_selected: usize,
+    pub podcast_input_mode: bool,
+    /// Last search/fetch error, shown persistently in the panel.
+    pub podcast_last_error: Option<String>,
+    pub podcast_episode_filter: String,
+    pub podcast_episode_filter_cursor: usize,
+    pub podcast_episode_filter_mode: bool,
 }
 
 impl App {
@@ -227,6 +263,26 @@ impl App {
             library_group_selected: 0,
             library_group_track_selected: 0,
             library_group_focus: false,
+            podcast_search_input: String::new(),
+            podcast_search_cursor: 0,
+            podcast_search_results: Vec::new(),
+            podcast_searching: false,
+            pending_podcast_search: None,
+            podcast_followed: Vec::new(),
+            podcast_selected_feed: None,
+            podcast_episodes: Vec::new(),
+            podcast_episode_selected: 0,
+            podcast_episodes_loading: false,
+            pending_podcast_episodes: None,
+            podcast_episode_focus: false,
+            podcast_section: PodcastSection::Followed,
+            podcast_result_selected: 0,
+            podcast_followed_selected: 0,
+            podcast_input_mode: false,
+            podcast_last_error: None,
+            podcast_episode_filter: String::new(),
+            podcast_episode_filter_cursor: 0,
+            podcast_episode_filter_mode: false,
         }
     }
 
