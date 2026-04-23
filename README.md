@@ -1,13 +1,15 @@
 
 <img width="1536" height="1024" alt="mutui" src="https://github.com/user-attachments/assets/b6034406-73ff-4606-bca8-e3bb6393b6f0" />
 
-
+<div align="center">
+  
 [![GitHub Stars](https://img.shields.io/github/stars/notliad/mutui?style=flat&color=FFD700&logo=starship&logoColor=white)](https://github.com/notliad/mutui/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/notliad/mutui?style=flat&color=0891b2&logo=github&logoColor=white)](https://github.com/notliad/mutui/network)
 [![GitHub License](https://img.shields.io/github/license/notliad/mutui?style=flat&color=22c55e)](https://github.com/notliad/mutui/blob/main/LICENSE)
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fnotliad%2Fmutui&label=visitors&countColor=%230c7ebe&style=flat&labelStyle=none)
 ![release](https://img.shields.io/github/v/release/notliad/mutui) ![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)
 
+</div>
 `mutui` is a lightweight terminal based music player for Linux.
 
 Features:
