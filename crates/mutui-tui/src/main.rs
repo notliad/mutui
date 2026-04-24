@@ -831,7 +831,7 @@ async fn handle_search_input(
         }
         KeyCode::Char(c) => {
             delete_search_selection_if_any(app);
-            app.search_input.insert(app.search_cursor, c);
+            app.search_input.insert(char_to_byte_idx(&app.search_input, app.search_cursor), c);
             app.search_cursor += 1;
             app.search_selection_anchor = None;
         }
@@ -840,15 +840,15 @@ async fn handle_search_input(
                 // selection handled
             } else if app.search_cursor > 0 {
                 app.search_cursor -= 1;
-                app.search_input.remove(app.search_cursor);
+                app.search_input.remove(char_to_byte_idx(&app.search_input, app.search_cursor));
             }
             app.search_selection_anchor = None;
         }
         KeyCode::Delete => {
             if delete_search_selection_if_any(app) {
                 // selection handled
-            } else if app.search_cursor < app.search_input.len() {
-                app.search_input.remove(app.search_cursor);
+            } else if app.search_cursor < app.search_input.chars().count() {
+                app.search_input.remove(char_to_byte_idx(&app.search_input, app.search_cursor));
             }
             app.search_selection_anchor = None;
         }
@@ -870,7 +870,7 @@ async fn handle_search_input(
             } else {
                 app.search_selection_anchor = None;
             }
-            app.search_cursor = (app.search_cursor + 1).min(app.search_input.len());
+            app.search_cursor = (app.search_cursor + 1).min(app.search_input.chars().count());
         }
         KeyCode::Home => {
             if shift {
@@ -890,11 +890,19 @@ async fn handle_search_input(
             } else {
                 app.search_selection_anchor = None;
             }
-            app.search_cursor = app.search_input.len();
+            app.search_cursor = app.search_input.chars().count();
         }
         _ => {}
     }
     Ok(())
+}
+
+/// Convert a char-count cursor position to a UTF-8 byte index.
+fn char_to_byte_idx(s: &str, char_pos: usize) -> usize {
+    s.char_indices()
+        .nth(char_pos)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
 }
 
 fn delete_search_selection_if_any(app: &mut App) -> bool {
@@ -913,7 +921,9 @@ fn delete_search_selection_if_any(app: &mut App) -> bool {
         (app.search_cursor, anchor)
     };
 
-    app.search_input.replace_range(start..end, "");
+    let byte_start = char_to_byte_idx(&app.search_input, start);
+    let byte_end = char_to_byte_idx(&app.search_input, end);
+    app.search_input.replace_range(byte_start..byte_end, "");
     app.search_cursor = start;
     app.search_selection_anchor = None;
     true
@@ -1117,13 +1127,13 @@ async fn handle_playlist_name_input(
             }
         }
         KeyCode::Char(c) => {
-            app.new_playlist_name.insert(app.new_playlist_cursor, c);
+            app.new_playlist_name.insert(char_to_byte_idx(&app.new_playlist_name, app.new_playlist_cursor), c);
             app.new_playlist_cursor += 1;
         }
         KeyCode::Backspace => {
             if app.new_playlist_cursor > 0 {
                 app.new_playlist_cursor -= 1;
-                app.new_playlist_name.remove(app.new_playlist_cursor);
+                app.new_playlist_name.remove(char_to_byte_idx(&app.new_playlist_name, app.new_playlist_cursor));
             }
         }
         KeyCode::Left => {
@@ -1131,7 +1141,7 @@ async fn handle_playlist_name_input(
         }
         KeyCode::Right => {
             app.new_playlist_cursor =
-                (app.new_playlist_cursor + 1).min(app.new_playlist_name.len());
+                (app.new_playlist_cursor + 1).min(app.new_playlist_name.chars().count());
         }
         _ => {}
     }
@@ -1669,18 +1679,18 @@ fn handle_library_filter_input(app: &mut App, key: event::KeyEvent) {
             app.library_selected = 0;
         }
         KeyCode::Char(c) => {
-            app.library_filter.insert(app.library_filter_cursor, c);
+            app.library_filter.insert(char_to_byte_idx(&app.library_filter, app.library_filter_cursor), c);
             app.library_filter_cursor += 1;
         }
         KeyCode::Backspace => {
             if app.library_filter_cursor > 0 {
                 app.library_filter_cursor -= 1;
-                app.library_filter.remove(app.library_filter_cursor);
+                app.library_filter.remove(char_to_byte_idx(&app.library_filter, app.library_filter_cursor));
             }
         }
         KeyCode::Delete => {
-            if app.library_filter_cursor < app.library_filter.len() {
-                app.library_filter.remove(app.library_filter_cursor);
+            if app.library_filter_cursor < app.library_filter.chars().count() {
+                app.library_filter.remove(char_to_byte_idx(&app.library_filter, app.library_filter_cursor));
             }
         }
         KeyCode::Left => {
@@ -1688,7 +1698,7 @@ fn handle_library_filter_input(app: &mut App, key: event::KeyEvent) {
         }
         KeyCode::Right => {
             app.library_filter_cursor =
-                (app.library_filter_cursor + 1).min(app.library_filter.len());
+                (app.library_filter_cursor + 1).min(app.library_filter.chars().count());
         }
         _ => {}
     }
@@ -1728,14 +1738,14 @@ async fn handle_library_folder_input(
         }
         KeyCode::Char(c) => {
             app.library_folder_input
-                .insert(app.library_folder_cursor, c);
+                .insert(char_to_byte_idx(&app.library_folder_input, app.library_folder_cursor), c);
             app.library_folder_cursor += 1;
         }
         KeyCode::Backspace => {
             if app.library_folder_cursor > 0 {
                 app.library_folder_cursor -= 1;
                 app.library_folder_input
-                    .remove(app.library_folder_cursor);
+                    .remove(char_to_byte_idx(&app.library_folder_input, app.library_folder_cursor));
             }
         }
         KeyCode::Left => {
@@ -1743,7 +1753,7 @@ async fn handle_library_folder_input(
         }
         KeyCode::Right => {
             app.library_folder_cursor =
-                (app.library_folder_cursor + 1).min(app.library_folder_input.len());
+                (app.library_folder_cursor + 1).min(app.library_folder_input.chars().count());
         }
         _ => {}
     }

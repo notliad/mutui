@@ -264,6 +264,8 @@ impl Daemon {
                 Err(e) => Response::Error(e.to_string()),
             },
             Request::ListLibraryFolders => Response::LibraryFolders(library::list_folders()),
+            // ScanLibrary is intercepted by the outer handler before the lock;
+            // this arm is unreachable in practice but required for exhaustiveness.
             Request::ScanLibrary => {
                 let tracks = library::scan();
                 Response::LibraryTracks(tracks)
