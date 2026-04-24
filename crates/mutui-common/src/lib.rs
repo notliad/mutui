@@ -123,15 +123,17 @@ pub enum Response {
 // --- Paths ---
 
 pub fn socket_path() -> PathBuf {
-    let runtime_dir =
-        std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("mutui.sock")
+    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+        return PathBuf::from(runtime_dir).join("mutui.sock");
+    }
+    std::env::temp_dir().join("mutui.sock")
 }
 
 pub fn mpv_socket_path() -> PathBuf {
-    let runtime_dir =
-        std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("mutui-mpv.sock")
+    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+        return PathBuf::from(runtime_dir).join("mutui-mpv.sock");
+    }
+    std::env::temp_dir().join("mutui-mpv.sock")
 }
 
 pub fn data_dir() -> PathBuf {

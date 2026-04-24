@@ -68,6 +68,22 @@ sudo apt install yt-dlp
 sudo dnf install yt-dlp
 ```
 
+- `mpv` and `pkg-config`
+
+```bash
+# Arch Linux
+sudo pacman -S mpv
+
+# Ubuntu/Debian
+sudo apt install mpv
+
+# Fedora
+sudo dnf install mpv
+
+# macOS (Homebrew)
+brew install mpv pkg-config
+```
+
 - Rust toolchain (`cargo`) to build
 
 ```bash

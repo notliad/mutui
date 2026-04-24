@@ -57,26 +57,17 @@ pub fn start_daemon() -> Result<()> {
     let daemon_exe = find_binary("mutuid")
         .context("Daemon binary not found. Install mutuid or build with `cargo build --release`.")?;
 
+    use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};
 
-    // Start in a new session so the daemon survives TUI/session teardown
-    // (practical equivalent of shell disown for this process tree).
-    let spawned = Command::new("setsid")
-        .arg(&daemon_exe)
+    // Move the daemon to its own process group so it survives terminal/session teardown.
+    Command::new(&daemon_exe)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .spawn();
-
-    if spawned.is_err() {
-        // Fallback when `setsid` is unavailable.
-        Command::new(&daemon_exe)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .context("Failed to start daemon")?;
-    }
+        .process_group(0)
+        .spawn()
+        .context("Failed to start daemon")?;
 
     Ok(())
 }
@@ -87,19 +78,13 @@ pub fn start_tray() {
         return;
     };
 
-    let _ = std::process::Command::new("setsid")
-        .arg(&tray_exe)
+    use std::os::unix::process::CommandExt;
+    let _ = std::process::Command::new(&tray_exe)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .spawn()
-        .or_else(|_| {
-            std::process::Command::new(&tray_exe)
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-        });
+        .process_group(0)
+        .spawn();
 }
 
 /// Stop the tray process if it is running (best-effort).

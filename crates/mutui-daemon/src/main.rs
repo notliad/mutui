@@ -1,4 +1,5 @@
 mod mpv;
+#[cfg(target_os = "linux")]
 mod mpris;
 mod library;
 mod playlist;
@@ -34,6 +35,7 @@ async fn main() -> Result<()> {
     let daemon = Arc::new(Mutex::new(daemon));
 
     // Expose MPRIS controls for Linux media keys and desktop integrations.
+    #[cfg(target_os = "linux")]
     mpris::spawn(Arc::clone(&daemon));
 
     // Install signal handler for clean shutdown

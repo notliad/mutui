@@ -1,3 +1,9 @@
+// mutui-tray: Linux-only binary (D-Bus StatusNotifierItem / ksni).
+// On non-Linux platforms the binary compiles to a no-op stub.
+
+#[cfg(target_os = "linux")]
+mod linux {
+
 use anyhow::{Context, Result};
 use ksni::menu::StandardItem;
 use ksni::TrayMethods;
@@ -294,8 +300,7 @@ fn acquire_lock() -> Option<TrayLock> {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<()> {
+pub(super) async fn run() -> Result<()> {
     let _lock = match acquire_lock() {
         Some(lock) => lock,
         None => return Ok(()),
@@ -353,4 +358,23 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+} // mod linux
+
+fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("failed to build tokio runtime")
+            .block_on(linux::run())
+            .unwrap_or_else(|e| {
+                eprintln!("mutui-tray error: {e:#}");
+                std::process::exit(1);
+            });
+    }
+    #[cfg(not(target_os = "linux"))]
+    eprintln!("mutui-tray is only supported on Linux.");
 }

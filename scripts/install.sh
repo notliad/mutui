@@ -38,6 +38,7 @@ detect_pkg_manager() {
   if need_cmd pacman; then echo "pacman"; return; fi
   if need_cmd apt-get; then echo "apt"; return; fi
   if need_cmd dnf;     then echo "dnf"; return; fi
+  if need_cmd brew;    then echo "brew"; return; fi
   echo ""
 }
 
@@ -45,8 +46,9 @@ install_system_deps() {
   local missing=()
 
   # mpv is checked as a command; libmpv (the shared library) ships with it.
-  need_cmd mpv    || missing+=("mpv")
-  need_cmd yt-dlp || missing+=("yt-dlp")
+  need_cmd mpv        || missing+=("mpv")
+  need_cmd yt-dlp     || missing+=("yt-dlp")
+  need_cmd pkg-config || missing+=("pkg-config")
 
   if [ ${#missing[@]} -eq 0 ]; then
     echo "[deps] All runtime dependencies are satisfied."
@@ -67,6 +69,7 @@ install_system_deps() {
     pacman) sudo pacman -Sy --needed --noconfirm "${missing[@]}" ;;
     apt)    sudo apt-get update && sudo apt-get install -y "${missing[@]}" ;;
     dnf)    sudo dnf install -y "${missing[@]}" ;;
+    brew)   brew install "${missing[@]}" ;;
   esac
 }
 
@@ -115,7 +118,12 @@ if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
   echo "[warning] ${BIN_DIR} is not in your PATH for this session."
   ensure_path_in_file "${HOME}/.bashrc"
   ensure_path_in_file "${HOME}/.profile"
-  echo "Added PATH export to ~/.bashrc and ~/.profile."
+  # macOS defaults to zsh; add to .zshrc and .zprofile as well.
+  if [[ "$(uname)" == "Darwin" ]]; then
+    ensure_path_in_file "${HOME}/.zshrc"
+    ensure_path_in_file "${HOME}/.zprofile"
+  fi
+  echo "Added PATH export to shell profile(s)."
   echo "Reload your shell or run: export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
