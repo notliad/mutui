@@ -858,7 +858,7 @@ dependencies = [
 
 [[package]]
 name = "mutui-common"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "mutui-daemon"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "mutui-tui"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "crossterm",
