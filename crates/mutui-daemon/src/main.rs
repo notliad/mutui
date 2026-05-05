@@ -2,6 +2,7 @@ mod mpv;
 mod mpris;
 mod library;
 mod playlist;
+mod podcasts;
 mod queue;
 mod search;
 mod server;

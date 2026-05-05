@@ -155,27 +155,29 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    let is_active = app.search_section == SearchSection::Tracks;
     let mut state = ListState::default().with_selected(Some(app.search_selected));
-    if app.search_section != SearchSection::Tracks {
-        state.select(None);
-    }
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if app.search_section == SearchSection::Tracks {
+                .border_style(Style::default().fg(if is_active {
                     Color::Cyan
                 } else {
                     Color::DarkGray
                 }))
                 .title(" Results "),
         )
-        .highlight_style(
+        .highlight_style(if is_active {
             Style::default()
                 .bg(Color::DarkGray)
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::BOLD)
+        })
         .highlight_symbol("▸ ");
     frame.render_stateful_widget(list, area, &mut state);
 }
@@ -292,27 +294,29 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
         }
     }
 
+    let is_active = app.search_section == SearchSection::Playlists;
     let mut state = ListState::default().with_selected(Some(selected_row));
-    if app.search_section != SearchSection::Playlists {
-        state.select(None);
-    }
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if app.search_section == SearchSection::Playlists {
+                .border_style(Style::default().fg(if is_active {
                     Color::Cyan
                 } else {
                     Color::DarkGray
                 }))
                 .title(" Playlists "),
         )
-        .highlight_style(
+        .highlight_style(if is_active {
             Style::default()
                 .bg(Color::DarkGray)
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::BOLD)
+        })
         .highlight_symbol("▸ ");
     frame.render_stateful_widget(list, area, &mut state);
 }
