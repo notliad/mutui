@@ -64,7 +64,6 @@ jobs:
           cp target/release/mutuid  "${TARDIR}/"
           cp target/release/mutui-tray "${TARDIR}/"
           cp README.md              "${TARDIR}/"
-          cp packaging/mutui.desktop "${TARDIR}/"
           tar czf "${TARDIR}.tar.gz" "${TARDIR}"
 
       # ── Debian package (.deb) ──────────────────────────────────────────────
@@ -85,7 +84,6 @@ jobs:
             target/release/mutui=/usr/bin/mutui \
             target/release/mutuid=/usr/bin/mutuid \
             target/release/mutui-tray=/usr/bin/mutui-tray \
-            packaging/mutui.desktop=/usr/share/applications/mutui.desktop
 
       # ── RPM package (.rpm) ─────────────────────────────────────────────────
       - name: Create .rpm package
@@ -105,7 +103,6 @@ jobs:
             target/release/mutui=/usr/bin/mutui \
             target/release/mutuid=/usr/bin/mutuid \
             target/release/mutui-tray=/usr/bin/mutui-tray \
-            packaging/mutui.desktop=/usr/share/applications/mutui.desktop
 
       # ── GitHub Release ─────────────────────────────────────────────────────
       - name: Create GitHub Release
