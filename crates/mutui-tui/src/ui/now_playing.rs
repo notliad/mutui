@@ -7,7 +7,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect, compact_mode: bool) {
     let block = Block::default()
         .title(" Now Playing ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(Style::default().fg(app.theme.border));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -43,7 +43,7 @@ fn render_compact(frame: &mut Frame, app: &App, area: Rect) {
     };
     let p = Paragraph::new(text)
         .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::Gray))
+        .style(Style::default().fg(app.theme.fg_dim))
         .wrap(Wrap { trim: false });
     frame.render_widget(p, area);
 }
@@ -69,12 +69,12 @@ fn render_now_playing_top(frame: &mut Frame, app: &App, area: Rect) {
     let color = match app.status.state {
         PlayerState::Playing => Color::Green,
         PlayerState::Paused => Color::Yellow,
-        PlayerState::Stopped => Color::DarkGray,
+        PlayerState::Stopped => app.theme.fg_dim,
     };
     let pill = Line::from(vec![
-        Span::styled("[", Style::default().fg(Color::DarkGray)),
+        Span::styled("[", Style::default().fg(app.theme.fg_dim)),
         Span::styled(state, Style::default().fg(color).add_modifier(Modifier::BOLD)),
-        Span::styled("]", Style::default().fg(Color::DarkGray)),
+        Span::styled("]", Style::default().fg(app.theme.fg_dim)),
     ]);
     frame.render_widget(Paragraph::new(pill), chunks[5]);
 }
@@ -88,17 +88,17 @@ fn render_track_title(frame: &mut Frame, app: &App, area: Rect) {
         };
 
         Paragraph::new(Line::from(vec![
-            Span::styled(format!(" {state} "), Style::default().fg(Color::Cyan)),
+            Span::styled(format!(" {state} "), Style::default().fg(app.theme.accent)),
             Span::styled(
                 track.title.as_str(),
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD),
             ),
         ]))
         .wrap(Wrap { trim: false })
     } else {
         Paragraph::new(Line::from(Span::styled(
             " ⏹ No track playing",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )))
     };
 
@@ -126,7 +126,7 @@ fn render_meta_and_progress(frame: &mut Frame, app: &App, area: Rect) {
 
     frame.render_widget(
         Paragraph::new(artist)
-            .style(Style::default().fg(Color::Gray))
+            .style(Style::default().fg(app.theme.fg))
             .wrap(Wrap { trim: false }),
         chunks[0],
     );
@@ -138,9 +138,9 @@ fn render_meta_and_progress(frame: &mut Frame, app: &App, area: Rect) {
     );
     let volume = format!("Vol {}%", app.status.volume);
     let row = Line::from(vec![
-        Span::styled(time, Style::default().fg(Color::DarkGray)),
+        Span::styled(time, Style::default().fg(app.theme.fg_dim)),
         Span::styled("  ", Style::default()),
-        Span::styled(volume, Style::default().fg(Color::Gray)),
+        Span::styled(volume, Style::default().fg(app.theme.fg)),
     ]);
     frame.render_widget(Paragraph::new(row), chunks[2]);
 
@@ -151,7 +151,7 @@ fn render_meta_and_progress(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let gauge = Gauge::default()
-        .gauge_style(Style::default().fg(Color::Cyan).bg(Color::DarkGray))
+        .gauge_style(Style::default().fg(app.theme.accent).bg(app.theme.selection_bg))
         .ratio(ratio)
         .label(" ");
     frame.render_widget(gauge, chunks[4]);
@@ -161,15 +161,15 @@ fn render_queue_compact(frame: &mut Frame, app: &App, area: Rect, two_columns: b
     let block = Block::default()
         .title(" Queue ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
-        .title_bottom(Line::from(" T=play  D=remove  J/K=navigate ").fg(Color::DarkGray));
+        .border_style(Style::default().fg(app.theme.border))
+        .title_bottom(Line::from(" T=play  D=remove  J/K=navigate ").fg(app.theme.fg_dim));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     if app.status.queue.is_empty() {
         frame.render_widget(
             Paragraph::new("empty")
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(app.theme.fg_dim))
                 .alignment(Alignment::Center),
             inner,
         );
@@ -193,11 +193,11 @@ fn render_queue_compact(frame: &mut Frame, app: &App, area: Rect, two_columns: b
             (false, false) => " ",
         };
         let style = if current {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(app.theme.fg_dim)
         };
         rendered_rows.push(Line::from(vec![
             Span::styled(format!("{prefix}{:02} ", real_idx + 1), style),

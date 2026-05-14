@@ -1,5 +1,7 @@
 mod app;
 mod client;
+mod config;
+mod theme;
 mod ui;
 
 use anyhow::Result;
@@ -46,6 +48,12 @@ async fn run(
     daemon: &mut DaemonClient,
 ) -> Result<()> {
     let mut app = App::new();
+
+    // Apply saved theme from config.
+    let cfg = config::TuiConfig::load();
+    if let Some(name) = &cfg.theme {
+        app.theme = theme::Theme::by_name(name);
+    }
     let mut search_task: Option<JoinHandle<anyhow::Result<(Response, Response)>>> = None;
     let mut playlist_tracks_task: Option<JoinHandle<anyhow::Result<(String, Response)>>> = None;
     let mut podcast_search_task: Option<JoinHandle<anyhow::Result<Response>>> = None;
@@ -395,6 +403,35 @@ async fn handle_key(
         return Ok(());
     }
 
+    if app.show_theme_selector {
+        let theme_count = theme::Theme::all().len();
+        match key.code {
+            KeyCode::Esc => app.show_theme_selector = false,
+            KeyCode::Down | KeyCode::Char('j') => {
+                app.theme_selector_selected =
+                    (app.theme_selector_selected + 1).min(theme_count - 1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                app.theme_selector_selected =
+                    app.theme_selector_selected.saturating_sub(1);
+            }
+            KeyCode::Enter => {
+                if let Some(t) = theme::Theme::all().get(app.theme_selector_selected) {
+                    app.theme = *t;
+                    let mut cfg = config::TuiConfig::load();
+                    cfg.theme = Some(t.name.to_string());
+                    if let Err(e) = cfg.save() {
+                        app.notify(format!("Failed to save config: {e}"));
+                    }
+                    app.notify(format!("Theme: {}", t.name));
+                    app.show_theme_selector = false;
+                }
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     // Handle input modes first
     match app.input_mode {
         InputMode::Search => {
@@ -437,6 +474,15 @@ async fn handle_key(
         KeyCode::Char('?') => {
             app.show_shortcuts_popup = true;
             app.help_popup_page = HelpPopupPage::Shortcuts;
+        }
+
+        // Theme selector
+        KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.show_theme_selector = true;
+            app.theme_selector_selected = theme::Theme::all()
+                .iter()
+                .position(|t| t.name == app.theme.name)
+                .unwrap_or(0);
         }
 
         // Tab navigation

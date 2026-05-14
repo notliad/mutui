@@ -1,3 +1,4 @@
+use crate::theme::Theme;
 use mutui_common::{DaemonStatus, PodcastChannel, PodcastEpisode, Track};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,6 +157,13 @@ pub struct App {
     pub new_playlist_name: String,
     pub new_playlist_cursor: usize,
 
+    // Active theme
+    pub theme: Theme,
+
+    // Theme selector popup
+    pub show_theme_selector: bool,
+    pub theme_selector_selected: usize,
+
     // Notification
     pub notification: Option<String>,
     pub notification_timer: u8,
@@ -245,6 +253,9 @@ impl App {
             playlist_expanded: false,
             new_playlist_name: String::new(),
             new_playlist_cursor: 0,
+            theme: Theme::default_theme(),
+            show_theme_selector: false,
+            theme_selector_selected: 0,
             notification: None,
             notification_timer: 0,
             queue_selected: 0,

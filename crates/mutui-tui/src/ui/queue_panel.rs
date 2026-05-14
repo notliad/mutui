@@ -6,14 +6,14 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" Queue ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(Style::default().fg(app.theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     if app.status.queue.is_empty() {
         frame.render_widget(
             Paragraph::new("empty")
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(app.theme.fg_dim))
                 .alignment(Alignment::Center),
             inner,
         );
@@ -42,11 +42,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         let prefix_style = if is_autoplay {
             Style::default().fg(Color::LightBlue).add_modifier(Modifier::BOLD)
         } else if current {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(app.theme.fg_dim)
         };
 
         let title_style = if is_autoplay {
@@ -56,11 +56,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(Color::LightBlue)
             }
         } else if current {
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD)
         } else if selected {
             Style::default().fg(Color::Yellow)
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().fg(app.theme.fg)
         };
 
         rows.push(Line::from(vec![

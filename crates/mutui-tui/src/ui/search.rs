@@ -17,9 +17,9 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_input(frame: &mut Frame, app: &App, area: Rect) {
     let input_style = if app.input_mode == InputMode::Search {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(app.theme.accent)
     } else {
-        Style::default().fg(Color::White)
+        Style::default().fg(app.theme.fg)
     };
 
     let spinner = match app.search_spinner_frame % 4 {
@@ -44,7 +44,7 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect) {
             for (byte_idx, ch) in app.search_input.char_indices() {
                 let selected = byte_idx >= start && byte_idx < end;
                 let style = if selected {
-                    Style::default().bg(Color::DarkGray).fg(Color::White)
+                    Style::default().bg(app.theme.selection_bg).fg(app.theme.selection_fg)
                 } else {
                     Style::default()
                 };
@@ -65,9 +65,9 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(if app.input_mode == InputMode::Search {
-                    Color::Cyan
+                    app.theme.border_active
                 } else {
-                    Color::DarkGray
+                    app.theme.border
                 }))
                 .title(" Search "),
         );
@@ -115,14 +115,14 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
             "No track results"
         };
         let p = Paragraph::new(help)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(if app.search_section == SearchSection::Tracks {
-                        Color::Cyan
+                        app.theme.border_active
                     } else {
-                        Color::DarkGray
+                        app.theme.border
                     }))
                     .title(" Results "),
             );
@@ -145,12 +145,12 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
                 .unwrap_or_default();
 
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{:2}. ", i + 1), Style::default().fg(Color::DarkGray)),
-                Span::styled(track.title.as_str(), Style::default().fg(Color::White)),
+                Span::styled(format!("{:2}. ", i + 1), Style::default().fg(app.theme.fg_dim)),
+                Span::styled(track.title.as_str(), Style::default().fg(app.theme.selection_fg)),
                 Span::raw(" "),
-                Span::styled(track.artist.as_str(), Style::default().fg(Color::DarkGray)),
+                Span::styled(track.artist.as_str(), Style::default().fg(app.theme.fg_dim)),
                 Span::raw("  "),
-                Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                Span::styled(duration, Style::default().fg(app.theme.fg_dim)),
             ]))
         })
         .collect();
@@ -162,20 +162,20 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(if is_active {
-                    Color::Cyan
+                    app.theme.border_active
                 } else {
-                    Color::DarkGray
+                    app.theme.border
                 }))
                 .title(" Results "),
         )
         .highlight_style(if is_active {
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
-                .fg(Color::Gray)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD)
         })
         .highlight_symbol("▸ ");
@@ -192,14 +192,14 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
             "No playlist results"
         };
         let p = Paragraph::new(help)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(if app.search_section == SearchSection::Playlists {
-                        Color::Cyan
+                        app.theme.border_active
                     } else {
-                        Color::DarkGray
+                        app.theme.border
                     }))
                     .title(" Playlists "),
             );
@@ -232,31 +232,31 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(
                 format!("{folder_prefix} {:2}. ", i + 1),
                 Style::default().fg(if is_active_selection {
-                    Color::Cyan
+                    app.theme.accent
                 } else {
-                    Color::DarkGray
+                    app.theme.fg_dim
                 }),
             ),
             Span::styled(
                 playlist.title.as_str(),
                 if is_active_selection {
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::Gray)
+                    Style::default().fg(app.theme.fg)
                 },
             ),
             Span::raw("  "),
-            Span::styled("owner: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(playlist.artist.as_str(), Style::default().fg(Color::White)),
+            Span::styled("owner: ", Style::default().fg(app.theme.fg_dim)),
+            Span::styled(playlist.artist.as_str(), Style::default().fg(app.theme.selection_fg)),
             Span::raw("  "),
-            Span::styled(songs, Style::default().fg(Color::DarkGray)),
+            Span::styled(songs, Style::default().fg(app.theme.fg_dim)),
         ]);
         items.push(ListItem::new(folder_line));
 
         if i == app.search_playlist_selected && app.search_playlist_expanded {
             if app.search_playlist_loading {
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled("    └─ ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("    └─ ", Style::default().fg(app.theme.fg_dim)),
                     Span::styled("loading tracks...", Style::default().fg(Color::Yellow)),
                 ])));
             }
@@ -272,7 +272,7 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
                     .unwrap_or_default();
 
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled("    └─ ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("    └─ ", Style::default().fg(app.theme.fg_dim)),
                     Span::styled(
                         track.title.as_str(),
                         if app.search_playlist_track_focus
@@ -280,11 +280,11 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
                         {
                             Style::default().fg(Color::Yellow)
                         } else {
-                            Style::default().fg(Color::White)
+                            Style::default().fg(app.theme.selection_fg)
                         },
                     ),
                     Span::styled("  ", Style::default()),
-                    Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                    Span::styled(duration, Style::default().fg(app.theme.fg_dim)),
                 ])));
             }
 
@@ -301,20 +301,20 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(if is_active {
-                    Color::Cyan
+                    app.theme.border_active
                 } else {
-                    Color::DarkGray
+                    app.theme.border
                 }))
                 .title(" Playlists "),
         )
         .highlight_style(if is_active {
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
-                .fg(Color::Gray)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD)
         })
         .highlight_symbol("▸ ");

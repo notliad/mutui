@@ -13,12 +13,12 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 fn render_list(frame: &mut Frame, app: &App, area: Rect) {
     if app.playlist_names.is_empty() {
         let p = Paragraph::new("No playlists yet - save the current queue with 's'")
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().fg(app.theme.border))
                     .title(" Playlists "),
             );
         frame.render_widget(p, area);
@@ -38,17 +38,17 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(
                 format!("{folder_prefix} {:2}. ", i + 1),
                 Style::default().fg(if i == app.playlist_selected {
-                    Color::Cyan
+                    app.theme.accent
                 } else {
-                    Color::DarkGray
+                    app.theme.fg_dim
                 }),
             ),
             Span::styled(
                 name.as_str(),
                 if i == app.playlist_selected {
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::Gray)
+                    Style::default().fg(app.theme.fg)
                 },
             ),
         ]);
@@ -66,17 +66,17 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
                     .unwrap_or_default();
 
                 let line = Line::from(vec![
-                    Span::styled("    └─ ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("    └─ ", Style::default().fg(app.theme.fg_dim)),
                     Span::styled(
                         track.title.as_str(),
                         if app.playlist_track_focus && app.playlist_track_selected == t_idx {
                             Style::default().fg(Color::Yellow)
                         } else {
-                            Style::default().fg(Color::White)
+                            Style::default().fg(app.theme.selection_fg)
                         },
                     ),
                     Span::styled("  ", Style::default()),
-                    Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                    Span::styled(duration, Style::default().fg(app.theme.fg_dim)),
                 ]);
                 items.push(ListItem::new(line));
             }
@@ -91,13 +91,13 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray))
+                .border_style(Style::default().fg(app.theme.border))
                 .title(" Playlists "),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
@@ -130,13 +130,13 @@ pub fn render_name_input_overlay(frame: &mut Frame, app: &App, area: Rect) {
         .split(popup[1]);
 
     let input = Paragraph::new(format!("  {}", app.new_playlist_name))
-        .style(Style::default().fg(Color::Cyan))
+        .style(Style::default().fg(app.theme.accent))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan))
+                .border_style(Style::default().fg(app.theme.border_active))
                 .title(" Playlist Name ")
-                .style(Style::default().bg(Color::Black)),
+                .style(Style::default().bg(app.theme.bg)),
         );
 
     frame.render_widget(Clear, inner[1]);

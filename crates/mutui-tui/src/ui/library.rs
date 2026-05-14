@@ -106,11 +106,11 @@ fn render_folders(frame: &mut Frame, app: &App, area: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_style(Style::default().fg(app.theme.border))
         .title(" Library Folders ");
 
     let p = Paragraph::new(format!("  {folders_text}"))
-        .style(Style::default().fg(Color::Gray))
+        .style(Style::default().fg(app.theme.fg))
         .block(block)
         .wrap(Wrap { trim: true });
 
@@ -127,12 +127,12 @@ fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
         if *mode == app.library_mode {
             spans.push(Span::styled(
                 format!("▶ {}", mode.label()),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
             ));
         } else {
             spans.push(Span::styled(
                 mode.label().to_string(),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.fg_dim),
             ));
         }
     }
@@ -141,7 +141,7 @@ fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::styled("    Filter: ", Style::default().fg(Color::Yellow)));
         spans.push(Span::styled(
             app.library_filter.clone(),
-            Style::default().fg(Color::White),
+            Style::default().fg(app.theme.selection_fg),
         ));
         if app.input_mode == InputMode::LibraryFilter {
             spans.push(Span::styled("█", Style::default().fg(Color::Yellow)));
@@ -149,14 +149,14 @@ fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         spans.push(Span::styled(
             "    /=filter  m=mode",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ));
     }
 
     let line = Line::from(spans);
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(Style::default().fg(app.theme.border));
     frame.render_widget(Paragraph::new(line).block(block), area);
 }
 
@@ -174,12 +174,12 @@ fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
             "No audio files found — press 'r' to rescan"
         };
         let p = Paragraph::new(msg)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().fg(app.theme.border))
                     .title(" Tracks "),
             );
         frame.render_widget(p, area);
@@ -192,18 +192,18 @@ fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
         .map(|(i, track)| {
             let duration = fmt_duration(track.duration);
             let album_span = if let Some(album) = &track.album {
-                Span::styled(format!("  {album}"), Style::default().fg(Color::DarkGray))
+                Span::styled(format!("  {album}"), Style::default().fg(app.theme.fg_dim))
             } else {
                 Span::raw("")
             };
             let content = Line::from(vec![
-                Span::styled(format!("{:3}. ", i + 1), Style::default().fg(Color::DarkGray)),
-                Span::styled(track.title.as_str(), Style::default().fg(Color::White)),
+                Span::styled(format!("{:3}. ", i + 1), Style::default().fg(app.theme.fg_dim)),
+                Span::styled(track.title.as_str(), Style::default().fg(app.theme.selection_fg)),
                 Span::raw("  "),
-                Span::styled(track.artist.as_str(), Style::default().fg(Color::Cyan)),
+                Span::styled(track.artist.as_str(), Style::default().fg(app.theme.accent)),
                 album_span,
                 Span::raw("  "),
-                Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                Span::styled(duration, Style::default().fg(app.theme.fg_dim)),
             ]);
             ListItem::new(content)
         })
@@ -214,19 +214,19 @@ fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan))
+                .border_style(Style::default().fg(app.theme.border_active))
                 .title(format!(" Tracks ({}) ", tracks.len()))
                 .title_bottom(
                     Line::from(
                         " Enter=play  a=queue  f=add folder  R=remove folder  r=rescan  o=open ",
                     )
-                    .fg(Color::DarkGray),
+                    .fg(app.theme.fg_dim),
                 ),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
@@ -256,12 +256,12 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
             "No audio files found — press 'r' to rescan"
         };
         let p = Paragraph::new(msg)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().fg(app.theme.border))
                     .title(format!(" {kind_label} ")),
             );
         frame.render_widget(p, area);
@@ -283,15 +283,15 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
     // Left panel
     {
         let focused = !app.library_group_focus;
-        let border_color = if focused { Color::Cyan } else { Color::DarkGray };
+        let border_color = if focused { app.theme.border_active } else { app.theme.border };
         let items: Vec<ListItem> = groups
             .iter()
             .map(|(name, tracks)| {
                 ListItem::new(Line::from(vec![
-                    Span::styled(name.as_str(), Style::default().fg(Color::White)),
+                    Span::styled(name.as_str(), Style::default().fg(app.theme.selection_fg)),
                     Span::styled(
                         format!("  ({})", tracks.len()),
-                        Style::default().fg(Color::DarkGray),
+                        Style::default().fg(app.theme.fg_dim),
                     ),
                 ]))
             })
@@ -304,13 +304,13 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
                     .border_style(Style::default().fg(border_color))
                     .title(format!(" {kind_label} ({}) ", groups.len()))
                     .title_bottom(
-                        Line::from(" l/Enter=tracks  a=add all  j/k=navigate ").fg(Color::DarkGray),
+                        Line::from(" l/Enter=tracks  a=add all  j/k=navigate ").fg(app.theme.fg_dim),
                     ),
             )
             .highlight_style(
                 Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::Cyan)
+                    .bg(app.theme.selection_bg)
+                    .fg(app.theme.accent)
                     .add_modifier(Modifier::BOLD),
             )
             .highlight_symbol("▸ ");
@@ -322,11 +322,11 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
     // Right panel
     {
         let focused = app.library_group_focus;
-        let border_color = if focused { Color::Cyan } else { Color::DarkGray };
+        let border_color = if focused { app.theme.border_active } else { app.theme.border };
 
         if group_tracks.is_empty() {
             let p = Paragraph::new("No tracks")
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(app.theme.fg_dim))
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -347,13 +347,13 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
                     ListItem::new(Line::from(vec![
                         Span::styled(
                             format!("{:3}. ", i + 1),
-                            Style::default().fg(Color::DarkGray),
+                            Style::default().fg(app.theme.fg_dim),
                         ),
-                        Span::styled(track.title.as_str(), Style::default().fg(Color::White)),
+                        Span::styled(track.title.as_str(), Style::default().fg(app.theme.selection_fg)),
                         Span::raw("  "),
-                        Span::styled(secondary, Style::default().fg(Color::DarkGray)),
+                        Span::styled(secondary, Style::default().fg(app.theme.fg_dim)),
                         Span::raw("  "),
-                        Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                        Span::styled(duration, Style::default().fg(app.theme.fg_dim)),
                     ]))
                 })
                 .collect();
@@ -370,13 +370,13 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
                             group_tracks.len()
                         ))
                         .title_bottom(
-                            Line::from(" Enter=play  a=queue  h=back  o=open ").fg(Color::DarkGray),
+                            Line::from(" Enter=play  a=queue  h=back  o=open ").fg(app.theme.fg_dim),
                         ),
                 )
                 .highlight_style(
                     Style::default()
-                        .bg(Color::DarkGray)
-                        .fg(Color::White)
+                        .bg(app.theme.selection_bg)
+                        .fg(app.theme.selection_fg)
                         .add_modifier(Modifier::BOLD),
                 )
                 .highlight_symbol("▸ ");
@@ -411,13 +411,13 @@ pub fn render_folder_input_overlay(frame: &mut Frame, app: &App, area: Rect) {
         .split(popup[1]);
 
     let input = Paragraph::new(format!("  {}", app.library_folder_input))
-        .style(Style::default().fg(Color::Cyan))
+        .style(Style::default().fg(app.theme.accent))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan))
+                .border_style(Style::default().fg(app.theme.border_active))
                 .title(" Folder Path ")
-                .style(Style::default().bg(Color::Black)),
+                .style(Style::default().bg(app.theme.bg)),
         );
 
     frame.render_widget(Clear, inner[1]);

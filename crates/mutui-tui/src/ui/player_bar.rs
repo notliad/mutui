@@ -14,10 +14,10 @@ fn render_controls(frame: &mut Frame, app: &App, area: Rect) {
     };
     let autoplay_state = if app.status.autoplay_enabled { "ON" } else { "OFF" };
 
-    let sep = Span::styled("  ·  ", Style::default().fg(Color::DarkGray));
-    let kb = |key: &'static str| Span::styled(key, Style::default().fg(Color::White));
-    let lb = Span::styled("[", Style::default().fg(Color::DarkGray));
-    let rb_label = |s: &'static str| Span::styled(format!("] {s}"), Style::default().fg(Color::DarkGray));
+    let sep = Span::styled("  ·  ", Style::default().fg(app.theme.fg_dim));
+    let kb = |key: &'static str| Span::styled(key, Style::default().fg(app.theme.selection_fg));
+    let lb = Span::styled("[", Style::default().fg(app.theme.fg_dim));
+    let rb_label = |s: &'static str| Span::styled(format!("] {s}"), Style::default().fg(app.theme.fg_dim));
 
     let line = Line::from(vec![
         lb.clone(), kb("Space"), rb_label("Play/Pause"),
@@ -35,7 +35,7 @@ fn render_controls(frame: &mut Frame, app: &App, area: Rect) {
 
     frame.render_widget(
         Paragraph::new(line)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center),
         area,
     );

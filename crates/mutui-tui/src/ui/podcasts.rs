@@ -29,9 +29,9 @@ fn render_channel_panel(frame: &mut Frame, app: &App, area: Rect) {
 fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.podcast_input_mode;
     let border_style = if focused {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(app.theme.border_active)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(app.theme.border)
     };
     let text = if app.podcast_searching {
         format!(" Searching…  {}", app.podcast_search_input)
@@ -39,7 +39,7 @@ fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
         format!("  {}", app.podcast_search_input)
     };
     let bar = Paragraph::new(text)
-        .style(Style::default().fg(if focused { Color::Cyan } else { Color::White }))
+        .style(Style::default().fg(if focused { app.theme.accent } else { app.theme.fg }))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -58,9 +58,9 @@ fn render_results_list(frame: &mut Frame, app: &App, area: Rect) {
     let is_active =
         !app.podcast_episode_focus && app.podcast_section == PodcastSection::Results;
     let border_style = if is_active {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(app.theme.border_active)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(app.theme.border)
     };
 
     if app.podcast_search_results.is_empty() {
@@ -91,7 +91,7 @@ fn render_results_list(frame: &mut Frame, app: &App, area: Rect) {
                         Line::from(
                             " [f] follow  ",
                         )
-                        .fg(Color::DarkGray),
+                        .fg(app.theme.fg_dim),
                     ),
             );
         frame.render_widget(p, area);
@@ -107,11 +107,11 @@ fn render_results_list(frame: &mut Frame, app: &App, area: Rect) {
             let marker = if is_followed { "★ " } else { "  " };
             let is_selected = i == app.podcast_result_selected;
             let style = if is_selected && is_active {
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD)
             } else if is_selected {
-                Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD)
+                Style::default().fg(app.theme.fg).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Gray)
+                Style::default().fg(app.theme.fg)
             };
             ListItem::new(Line::from(vec![
                 Span::styled(marker, Style::default().fg(Color::Yellow)),
@@ -129,8 +129,8 @@ fn render_results_list(frame: &mut Frame, app: &App, area: Rect) {
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
@@ -146,14 +146,14 @@ fn render_followed_list(frame: &mut Frame, app: &App, area: Rect) {
     let is_active =
         !app.podcast_episode_focus && app.podcast_section == PodcastSection::Followed;
     let border_style = if is_active {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(app.theme.border_active)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(app.theme.border)
     };
 
     if app.podcast_followed.is_empty() {
         let p = Paragraph::new("No followed podcasts\nf to follow selected result")
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
             .block(
@@ -173,11 +173,11 @@ fn render_followed_list(frame: &mut Frame, app: &App, area: Rect) {
         .map(|(i, ch)| {
             let is_selected = i == app.podcast_followed_selected;
             let style = if is_selected && is_active {
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD)
             } else if is_selected {
-                Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD)
+                Style::default().fg(app.theme.fg).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Gray)
+                Style::default().fg(app.theme.fg)
             };
             ListItem::new(Line::from(vec![
                 Span::styled("★ ", Style::default().fg(Color::Yellow)),
@@ -196,13 +196,13 @@ fn render_followed_list(frame: &mut Frame, app: &App, area: Rect) {
                         Line::from(
                             " [f] unfollow  ",
                         )
-                        .fg(Color::DarkGray),
+                        .fg(app.theme.fg_dim),
                     ),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
@@ -217,12 +217,12 @@ fn render_followed_list(frame: &mut Frame, app: &App, area: Rect) {
 fn render_episode_panel(frame: &mut Frame, app: &App, area: Rect) {
     if app.podcast_episodes_loading {
         let p = Paragraph::new("Loading episodes…")
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().fg(app.theme.border))
                     .title(" Episodes "),
             );
         frame.render_widget(p, area);
@@ -236,12 +236,12 @@ fn render_episode_panel(frame: &mut Frame, app: &App, area: Rect) {
             "Select a podcast and press Enter"
         };
         let p = Paragraph::new(hint)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().fg(app.theme.border))
                     .title(" Episodes "),
             );
         frame.render_widget(p, area);
@@ -261,13 +261,13 @@ fn render_episode_panel(frame: &mut Frame, app: &App, area: Rect) {
 fn render_episode_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.podcast_episode_filter_mode;
     let border_style = if focused {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(app.theme.border_active)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(app.theme.border)
     };
     let text = format!("  {}", app.podcast_episode_filter);
     let bar = Paragraph::new(text)
-        .style(Style::default().fg(if focused { Color::Cyan } else { Color::White }))
+        .style(Style::default().fg(if focused { app.theme.accent } else { app.theme.fg }))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -313,18 +313,18 @@ fn episode_items<'a>(app: &'a App) -> (Vec<ListItem<'a>>, usize) {
                 .unwrap_or("");
             let is_selected = i == app.podcast_episode_selected;
             let title_style = if is_selected && is_active {
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                Style::default().fg(app.theme.selection_fg).add_modifier(Modifier::BOLD)
             } else if is_selected {
-                Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD)
+                Style::default().fg(app.theme.fg).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Gray)
+                Style::default().fg(app.theme.fg)
             };
             let line = Line::from(vec![
                 Span::styled(ep.title.as_str(), title_style),
                 Span::raw("  "),
-                Span::styled(duration, Style::default().fg(Color::DarkGray)),
+                Span::styled(duration, Style::default().fg(app.theme.fg_dim)),
                 Span::raw("  "),
-                Span::styled(date, Style::default().fg(Color::DarkGray)),
+                Span::styled(date, Style::default().fg(app.theme.fg_dim)),
             ]);
             ListItem::new(line)
         })
@@ -335,16 +335,16 @@ fn episode_items<'a>(app: &'a App) -> (Vec<ListItem<'a>>, usize) {
 fn render_episode_list(frame: &mut Frame, app: &App, area: Rect) {
     let is_active = app.podcast_episode_focus;
     let border_style = if is_active {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(app.theme.border_active)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(app.theme.border)
     };
 
     let (items, total) = episode_items(app);
 
     if items.is_empty() {
         let p = Paragraph::new("No episodes match the filter")
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(app.theme.fg_dim))
             .alignment(Alignment::Center)
             .block(
                 Block::default()
@@ -363,13 +363,13 @@ fn render_episode_list(frame: &mut Frame, app: &App, area: Rect) {
                 .border_style(border_style)
                 .title(" Episodes ")
                 .title_bottom(
-                    Line::from(" [a] add  [Enter] play  [f] filter  ").fg(Color::DarkGray),
+                    Line::from(" [a] add  [Enter] play  [f] filter  ").fg(app.theme.fg_dim),
                 ),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");

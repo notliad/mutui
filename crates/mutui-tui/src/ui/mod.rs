@@ -11,6 +11,12 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 pub fn render(frame: &mut Frame, app: &App) {
+    // Fill the entire screen with the theme background so light themes work correctly.
+    frame.render_widget(
+        Block::default().style(Style::default().bg(app.theme.bg)),
+        frame.area(),
+    );
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -86,6 +92,10 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_shortcuts_popup {
         render_shortcuts_popup(frame, app);
     }
+
+    if app.show_theme_selector {
+        render_theme_selector_popup(frame, app);
+    }
 }
 
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
@@ -99,10 +109,10 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
         .map(|v| {
             let style = if *v == app.view {
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(app.theme.accent)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(app.theme.fg_dim)
             };
             Line::styled(format!(" {} ", v.label()), style)
         })
@@ -110,8 +120,8 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
 
     let tabs = Tabs::new(titles)
         .select(selected_idx)
-        .divider(Span::styled("│", Style::default().fg(Color::DarkGray)))
-        .highlight_style(Style::default().fg(Color::Cyan));
+        .divider(Span::styled("│", Style::default().fg(app.theme.border)))
+        .highlight_style(Style::default().fg(app.theme.accent));
 
     frame.render_widget(tabs, area);
 }
@@ -143,29 +153,29 @@ fn render_shortcuts_popup(frame: &mut Frame, app: &App) {
     };
 
     if is_shortcuts {
-        render_shortcuts_page(frame, title);
+        render_shortcuts_page(frame, app, title);
     } else {
-        render_about_page(frame, title);
+        render_about_page(frame, app, title);
     }
 }
 
-fn render_shortcuts_page(frame: &mut Frame, title: &str) {
+fn render_shortcuts_page(frame: &mut Frame, app: &App, title: &str) {
     let area = centered_rect(72, 24, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
         .title(title)
         .title_bottom(
-            Line::from(" Tab/Shift+Tab: Shortcuts <-> About  ?/Esc close ").fg(Color::DarkGray),
+            Line::from(" Tab/Shift+Tab: Shortcuts <-> About  ?/Esc close ").fg(app.theme.fg_dim),
         )
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
-        .style(Style::default().bg(Color::Black));
+        .border_style(Style::default().fg(app.theme.border))
+        .style(Style::default().bg(app.theme.bg));
 
     let header = Row::new(vec![
-        Cell::from("Shortcut").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Shortcut").style(Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)),
         Cell::from("Description")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            .style(Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)),
     ]);
 
     let rows = vec![
@@ -199,20 +209,21 @@ fn render_shortcuts_page(frame: &mut Frame, title: &str) {
         Row::new(vec!["r", "Rescan library (Library tab)"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["Tab", "Switch between tabs"]),
+        Row::new(vec!["Ctrl+T", "Open theme selector"]),
         Row::new(vec!["q", "Close app"]),
         Row::new(vec!["Q", "Shutdown"]),
     ];
 
-    let table = Table::new(rows, [Constraint::Length(10), Constraint::Fill(1)])
+    let table = Table::new(rows, [Constraint::Length(16), Constraint::Fill(1)])
         .header(header)
         .column_spacing(2)
         .block(block)
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default().fg(app.theme.fg));
 
     frame.render_widget(table, area);
 }
 
-fn render_about_page(frame: &mut Frame, title: &str) {
+fn render_about_page(frame: &mut Frame, app: &App, title: &str) {
     let version = env!("CARGO_PKG_VERSION");
     let license = option_env!("CARGO_PKG_LICENSE").unwrap_or("not specified");
     let repository = "https://github.com/notliad/mutui";
@@ -223,21 +234,21 @@ fn render_about_page(frame: &mut Frame, title: &str) {
     let block = Block::default()
         .title(title)
         .title_bottom(
-            Line::from(" Tab/Shift+Tab: Shortcuts <-> About  ?/Esc close ").fg(Color::DarkGray),
+            Line::from(" Tab/Shift+Tab: Shortcuts <-> About  ?/Esc close ").fg(app.theme.fg_dim),
         )
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
-        .style(Style::default().bg(Color::Black));
+        .border_style(Style::default().fg(app.theme.border))
+        .style(Style::default().bg(app.theme.bg));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     let text = vec![
         Line::from(vec![
-            Span::styled("mutui", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled("mutui", Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled(
                 format!(" v{version}"),
-                Style::default().fg(Color::Gray),
+                Style::default().fg(app.theme.fg),
             ),
         ]),
         Line::from(""),
@@ -245,19 +256,19 @@ fn render_about_page(frame: &mut Frame, title: &str) {
         Line::from("Browse your library, search, manage playlists and queue playback."),
         Line::from(""),
         Line::from(vec![
-            Span::styled("License: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(license, Style::default().fg(Color::Gray)),
+            Span::styled("License: ", Style::default().fg(app.theme.fg_dim)),
+            Span::styled(license, Style::default().fg(app.theme.fg)),
         ]),
         Line::from(vec![
-            Span::styled("Repo: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(repository, Style::default().fg(Color::LightBlue)),
+            Span::styled("Repo: ", Style::default().fg(app.theme.fg_dim)),
+            Span::styled(repository, Style::default().fg(app.theme.accent)),
         ]),
     ];
 
     let paragraph = Paragraph::new(text)
         .wrap(Wrap { trim: true })
         .alignment(Alignment::Left)
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default().fg(app.theme.fg));
 
     frame.render_widget(paragraph, inner);
 }
@@ -274,7 +285,7 @@ fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App) {
         .title(" Confirm Delete ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
-        .style(Style::default().bg(Color::Black));
+        .style(Style::default().bg(app.theme.bg));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -288,7 +299,7 @@ fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App) {
         Line::from(format!("Delete playlist '{name}'?")),
         Line::from("Enter/Y confirm  Esc/N cancel"),
     ])
-    .style(Style::default().fg(Color::Gray))
+    .style(Style::default().fg(app.theme.fg))
     .alignment(Alignment::Center)
     .wrap(Wrap { trim: true });
 
@@ -307,7 +318,7 @@ fn render_delete_library_folder_select_popup(frame: &mut Frame, app: &App) {
         .title(" Remove Library Folder ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
-        .style(Style::default().bg(Color::Black));
+        .style(Style::default().bg(app.theme.bg));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -318,7 +329,7 @@ fn render_delete_library_folder_select_popup(frame: &mut Frame, app: &App) {
         .split(inner);
 
     let title = Paragraph::new("Select a folder to remove")
-        .style(Style::default().fg(Color::Gray))
+        .style(Style::default().fg(app.theme.fg))
         .alignment(Alignment::Center);
     frame.render_widget(title, rows[0]);
 
@@ -332,14 +343,14 @@ fn render_delete_library_folder_select_popup(frame: &mut Frame, app: &App) {
         .highlight_symbol("▸ ")
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
                 .add_modifier(Modifier::BOLD),
         )
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray)),
+                .border_style(Style::default().fg(app.theme.border)),
         );
 
     let mut state = ListState::default().with_selected(Some(
@@ -348,7 +359,47 @@ fn render_delete_library_folder_select_popup(frame: &mut Frame, app: &App) {
     frame.render_stateful_widget(list, rows[1], &mut state);
 
     let hint = Paragraph::new("j/k or arrows: select  Enter: remove  Esc: cancel")
-        .style(Style::default().fg(Color::DarkGray))
+        .style(Style::default().fg(app.theme.fg_dim))
         .alignment(Alignment::Center);
     frame.render_widget(hint, rows[2]);
+}
+
+fn render_theme_selector_popup(frame: &mut Frame, app: &App) {
+    let themes = crate::theme::Theme::all();
+    let height = (themes.len() as u16 + 4).min(frame.area().height.saturating_sub(4));
+    let area = centered_rect(44, height, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(" Select Theme ")
+        .title_bottom(
+            Line::from(" j/k navigate  Enter select  Esc close ").fg(app.theme.fg_dim),
+        )
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.border_active))
+        .style(Style::default().bg(app.theme.bg));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let items: Vec<ListItem> = themes
+        .iter()
+        .map(|t| {
+            let marker = if t.name == app.theme.name { "✓ " } else { "  " };
+            ListItem::new(format!("{}{}", marker, t.name))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .highlight_symbol("▸ ")
+        .highlight_style(
+            Style::default()
+                .bg(app.theme.selection_bg)
+                .fg(app.theme.selection_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .style(Style::default().fg(app.theme.fg));
+
+    let mut state = ListState::default().with_selected(Some(app.theme_selector_selected));
+    frame.render_stateful_widget(list, inner, &mut state);
 }
