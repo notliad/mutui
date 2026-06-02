@@ -8,6 +8,7 @@ arch=('x86_64' 'aarch64')
 license=('MIT' 'LGPL-2.1-only')
 depends=('mpv' 'yt-dlp')
 makedepends=('cargo')
+options=(!lto)
 # Run `makepkg -g` after updating pkgver to regenerate the real checksum.
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('b153f6aad0ac1f1dd3670084f10c37b03c44f559d011f45d0c34008759331cad')
