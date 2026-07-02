@@ -9,6 +9,8 @@
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fnotliad%2Fmutui&label=visitors&countColor=%230c7ebe&style=flat&labelStyle=none)
 ![release](https://img.shields.io/github/v/release/notliad/mutui) ![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)
 
+<a href='https://ko-fi.com/R6R11CIHFE' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
 </div>
 `mutui` is a lightweight terminal based music player for Linux.
 
