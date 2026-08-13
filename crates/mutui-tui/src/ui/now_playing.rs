@@ -1,9 +1,10 @@
 use crate::app::App;
+use crate::mouse::{HitRegion, MouseMap};
 use mutui_common::PlayerState;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-pub fn render(frame: &mut Frame, app: &App, area: Rect, compact_mode: bool) {
+pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect, compact_mode: bool) {
     let block = Block::default()
         .title(" Now Playing ")
         .borders(Borders::ALL)
@@ -27,10 +28,10 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect, compact_mode: bool) {
             ])
             .split(inner);
 
-        render_now_playing_top(frame, app, chunks[0]);
+        render_now_playing_top(frame, app, mouse_map, chunks[0]);
         render_queue_compact(frame, app, chunks[1], true);
     } else {
-        render_now_playing_top(frame, app, inner);
+        render_now_playing_top(frame, app, mouse_map, inner);
     }
 }
 
@@ -48,7 +49,7 @@ fn render_compact(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(p, area);
 }
 
-fn render_now_playing_top(frame: &mut Frame, app: &App, area: Rect) {
+fn render_now_playing_top(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -63,7 +64,7 @@ fn render_now_playing_top(frame: &mut Frame, app: &App, area: Rect) {
         .split(area);
 
     render_track_title(frame, app, chunks[1]);
-    render_meta_and_progress(frame, app, chunks[3]);
+    render_meta_and_progress(frame, app, mouse_map, chunks[3]);
 
     let state = status_text(app.status.state);
     let color = match app.status.state {
@@ -105,7 +106,7 @@ fn render_track_title(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(p, area);
 }
 
-fn render_meta_and_progress(frame: &mut Frame, app: &App, area: Rect) {
+fn render_meta_and_progress(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -155,6 +156,7 @@ fn render_meta_and_progress(frame: &mut Frame, app: &App, area: Rect) {
         .ratio(ratio)
         .label(" ");
     frame.render_widget(gauge, chunks[4]);
+    mouse_map.push(HitRegion::Seek(chunks[4]));
 }
 
 fn render_queue_compact(frame: &mut Frame, app: &App, area: Rect, two_columns: bool) {

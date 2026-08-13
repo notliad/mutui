@@ -1,16 +1,17 @@
 use crate::app::{App, PlaylistView};
+use crate::mouse::{HitRegion, InputId, ListId, MouseMap};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-pub fn render(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     match app.playlist_view {
-        PlaylistView::List => render_list(frame, app, area),
+        PlaylistView::List => render_list(frame, app, mouse_map, area),
     }
 
     // Overlay is rendered from ui::mod so it appears regardless of active tab.
 }
 
-fn render_list(frame: &mut Frame, app: &App, area: Rect) {
+fn render_list(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     if app.playlist_names.is_empty() {
         let p = Paragraph::new("No playlists yet - save the current queue with 's'")
             .style(Style::default().fg(Color::DarkGray))
@@ -87,6 +88,7 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
         }
     }
 
+    let item_count = items.len();
     let list = List::new(items)
         .block(
             Block::default()
@@ -108,9 +110,15 @@ fn render_list(frame: &mut Frame, app: &App, area: Rect) {
         Some(selected_row)
     });
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(ListId::PlaylistList, area, state.offset(), item_count);
 }
 
-pub fn render_name_input_overlay(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_name_input_overlay(
+    frame: &mut Frame,
+    app: &App,
+    mouse_map: &mut MouseMap,
+    area: Rect,
+) {
     let popup = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -128,6 +136,9 @@ pub fn render_name_input_overlay(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Percentage(20),
         ])
         .split(popup[1]);
+
+    mouse_map.push(HitRegion::Popup(popup[1]));
+    mouse_map.push(HitRegion::Input(InputId::PlaylistName, inner[1]));
 
     let input = Paragraph::new(format!("  {}", app.new_playlist_name))
         .style(Style::default().fg(Color::Cyan))
