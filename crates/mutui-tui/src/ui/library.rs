@@ -1,8 +1,10 @@
 use crate::app::{App, InputMode, LibraryMode};
+use crate::mouse::{ButtonAction, HitRegion, InputId, ListId, MouseMap};
 use mutui_common::Track;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 use std::collections::BTreeMap;
+use unicode_width::UnicodeWidthStr;
 
 // --- Data helpers ---
 
@@ -66,7 +68,7 @@ enum GroupKind {
 
 // --- Public render entry point ---
 
-pub fn render(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -77,12 +79,12 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         .split(area);
 
     render_folders(frame, app, chunks[0]);
-    render_mode_bar(frame, app, chunks[1]);
+    render_mode_bar(frame, app, mouse_map, chunks[1]);
 
     match app.library_mode {
-        LibraryMode::AllTracks => render_all_tracks(frame, app, chunks[2]),
-        LibraryMode::ByArtist => render_grouped(frame, app, chunks[2], GroupKind::Artist),
-        LibraryMode::ByAlbum => render_grouped(frame, app, chunks[2], GroupKind::Album),
+        LibraryMode::AllTracks => render_all_tracks(frame, app, mouse_map, chunks[2]),
+        LibraryMode::ByArtist => render_grouped(frame, app, mouse_map, chunks[2], GroupKind::Artist),
+        LibraryMode::ByAlbum => render_grouped(frame, app, mouse_map, chunks[2], GroupKind::Album),
     }
 }
 
@@ -117,7 +119,7 @@ fn render_folders(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(p, area);
 }
 
-fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
+fn render_mode_bar(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let modes = [LibraryMode::ByArtist, LibraryMode::ByAlbum, LibraryMode::AllTracks];
     let mut spans: Vec<Span> = vec![Span::raw("  ")];
     for (i, mode) in modes.iter().enumerate() {
@@ -158,11 +160,38 @@ fn render_mode_bar(frame: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
     frame.render_widget(Paragraph::new(line).block(block), area);
+
+    // Register the library mode buttons and the filter input region.
+    let mut x = area.x + 3; // left border + "  " prefix
+    for (i, mode) in modes.iter().enumerate() {
+        if i > 0 {
+            x += 5; // "  │  " separator
+        }
+        let label = if *mode == app.library_mode {
+            format!("▶ {}", mode.label())
+        } else {
+            mode.label().to_string()
+        };
+        let width = label.width() as u16;
+        mouse_map.push(HitRegion::Button(
+            ButtonAction::SwitchLibraryMode(*mode),
+            Rect::new(x, area.y + 1, width, 1),
+        ));
+        x += width;
+    }
+    let filter_start = x + 12; // "    Filter: "
+    let filter_rect = Rect::new(
+        filter_start,
+        area.y + 1,
+        area.width.saturating_sub(filter_start - area.x),
+        area.height.saturating_sub(2),
+    );
+    mouse_map.push(HitRegion::Input(InputId::LibraryFilter, filter_rect));
 }
 
 // --- All Tracks mode ---
 
-fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
+fn render_all_tracks(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let tracks = filtered_tracks(&app.library_tracks, &app.library_filter);
 
     if tracks.is_empty() {
@@ -233,11 +262,12 @@ fn render_all_tracks(frame: &mut Frame, app: &App, area: Rect) {
 
     let mut state = ListState::default().with_selected(Some(sel));
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(ListId::LibraryTracks, area, state.offset(), tracks.len());
 }
 
 // --- Grouped mode (Artists / Albums) ---
 
-fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
+fn render_grouped(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect, kind: GroupKind) {
     let groups: Vec<(String, Vec<&Track>)> = match kind {
         GroupKind::Artist => grouped_by_artist(&app.library_tracks, &app.library_filter),
         GroupKind::Album => grouped_by_album(&app.library_tracks, &app.library_filter),
@@ -317,6 +347,7 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
 
         let mut state = ListState::default().with_selected(Some(group_sel));
         frame.render_stateful_widget(list, cols[0], &mut state);
+        mouse_map.push_list(ListId::LibraryGroups, cols[0], state.offset(), groups.len());
     }
 
     // Right panel
@@ -387,11 +418,22 @@ fn render_grouped(frame: &mut Frame, app: &App, area: Rect, kind: GroupKind) {
                 None
             });
             frame.render_stateful_widget(list, cols[1], &mut state);
+            mouse_map.push_list(
+                ListId::LibraryGroupTracks,
+                cols[1],
+                state.offset(),
+                group_tracks.len(),
+            );
         }
     }
 }
 
-pub fn render_folder_input_overlay(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_folder_input_overlay(
+    frame: &mut Frame,
+    app: &App,
+    mouse_map: &mut MouseMap,
+    area: Rect,
+) {
     let popup = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -409,6 +451,9 @@ pub fn render_folder_input_overlay(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Percentage(15),
         ])
         .split(popup[1]);
+
+    mouse_map.push(HitRegion::Popup(popup[1]));
+    mouse_map.push(HitRegion::Input(InputId::LibraryFolder, inner[1]));
 
     let input = Paragraph::new(format!("  {}", app.library_folder_input))
         .style(Style::default().fg(Color::Cyan))

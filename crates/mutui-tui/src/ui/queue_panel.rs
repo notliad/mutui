@@ -1,8 +1,9 @@
 use crate::app::App;
+use crate::mouse::{ListId, MouseMap};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-pub fn render(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let block = Block::default()
         .title(" Queue ")
         .borders(Borders::ALL)
@@ -74,6 +75,12 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     frame.render_widget(Paragraph::new(rows), inner);
+    mouse_map.push_list_content(
+        ListId::Queue,
+        inner,
+        start,
+        app.status.queue.len(),
+    );
 }
 
 fn fit_inline(input: &str, max: usize) -> String {

@@ -1,32 +1,33 @@
 use crate::app::{App, PodcastSection};
+use crate::mouse::{HitRegion, InputId, ListId, MouseMap};
 use mutui_common::PodcastEpisode;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-pub fn render(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     // Split horizontally: channel list on the left, episode list on the right.
     let halves = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(area);
 
-    render_channel_panel(frame, app, halves[0]);
-    render_episode_panel(frame, app, halves[1]);
+    render_channel_panel(frame, app, mouse_map, halves[0]);
+    render_episode_panel(frame, app, mouse_map, halves[1]);
 }
 
-fn render_channel_panel(frame: &mut Frame, app: &App, area: Rect) {
+fn render_channel_panel(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     // Three vertical sections: search bar, search results, followed podcasts.
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(3), Constraint::Min(3)])
         .split(area);
 
-    render_search_bar(frame, app, chunks[0]);
-    render_results_list(frame, app, chunks[1]);
-    render_followed_list(frame, app, chunks[2]);
+    render_search_bar(frame, app, mouse_map, chunks[0]);
+    render_results_list(frame, app, mouse_map, chunks[1]);
+    render_followed_list(frame, app, mouse_map, chunks[2]);
 }
 
-fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
+fn render_search_bar(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let focused = app.podcast_input_mode;
     let border_style = if focused {
         Style::default().fg(Color::Cyan)
@@ -47,6 +48,7 @@ fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
                 .title(" Search Podcasts [/] "),
         );
     frame.render_widget(bar, area);
+    mouse_map.push(HitRegion::Input(InputId::PodcastSearch, area));
     if focused {
         let cursor_x = area.x + app.podcast_search_cursor as u16 + 3;
         let cursor_x = cursor_x.min(area.x + area.width.saturating_sub(2));
@@ -54,7 +56,7 @@ fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn render_results_list(frame: &mut Frame, app: &App, area: Rect) {
+fn render_results_list(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let is_active =
         !app.podcast_episode_focus && app.podcast_section == PodcastSection::Results;
     let border_style = if is_active {
@@ -140,9 +142,15 @@ fn render_results_list(frame: &mut Frame, app: &App, area: Rect) {
         .min(app.podcast_search_results.len() - 1);
     let mut state = ListState::default().with_selected(Some(sel));
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(
+        ListId::PodcastResults,
+        area,
+        state.offset(),
+        app.podcast_search_results.len(),
+    );
 }
 
-fn render_followed_list(frame: &mut Frame, app: &App, area: Rect) {
+fn render_followed_list(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let is_active =
         !app.podcast_episode_focus && app.podcast_section == PodcastSection::Followed;
     let border_style = if is_active {
@@ -212,9 +220,15 @@ fn render_followed_list(frame: &mut Frame, app: &App, area: Rect) {
         .min(app.podcast_followed.len() - 1);
     let mut state = ListState::default().with_selected(Some(sel));
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(
+        ListId::PodcastFollowed,
+        area,
+        state.offset(),
+        app.podcast_followed.len(),
+    );
 }
 
-fn render_episode_panel(frame: &mut Frame, app: &App, area: Rect) {
+fn render_episode_panel(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     if app.podcast_episodes_loading {
         let p = Paragraph::new("Loading episodes…")
             .style(Style::default().fg(Color::DarkGray))
@@ -254,11 +268,11 @@ fn render_episode_panel(frame: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Length(3), Constraint::Min(3)])
         .split(area);
 
-    render_episode_filter_bar(frame, app, chunks[0]);
-    render_episode_list(frame, app, chunks[1]);
+    render_episode_filter_bar(frame, app, mouse_map, chunks[0]);
+    render_episode_list(frame, app, mouse_map, chunks[1]);
 }
 
-fn render_episode_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
+fn render_episode_filter_bar(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let focused = app.podcast_episode_filter_mode;
     let border_style = if focused {
         Style::default().fg(Color::Cyan)
@@ -275,6 +289,7 @@ fn render_episode_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
                 .title(" Filter [f] "),
         );
     frame.render_widget(bar, area);
+    mouse_map.push(HitRegion::Input(InputId::PodcastEpisodeFilter, area));
     if focused {
         let cursor_x = area.x + app.podcast_episode_filter_cursor as u16 + 3;
         let cursor_x = cursor_x.min(area.x + area.width.saturating_sub(2));
@@ -332,7 +347,7 @@ fn episode_items<'a>(app: &'a App) -> (Vec<ListItem<'a>>, usize) {
     (items, total)
 }
 
-fn render_episode_list(frame: &mut Frame, app: &App, area: Rect) {
+fn render_episode_list(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let is_active = app.podcast_episode_focus;
     let border_style = if is_active {
         Style::default().fg(Color::Cyan)
@@ -377,5 +392,6 @@ fn render_episode_list(frame: &mut Frame, app: &App, area: Rect) {
     let sel = app.podcast_episode_selected.min(total - 1);
     let mut state = ListState::default().with_selected(Some(sel));
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(ListId::PodcastEpisodes, area, state.offset(), total);
 }
 

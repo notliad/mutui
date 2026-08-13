@@ -1,5 +1,6 @@
 mod app;
 mod client;
+mod mouse;
 mod ui;
 
 use anyhow::Result;
@@ -46,6 +47,8 @@ async fn run(
     daemon: &mut DaemonClient,
 ) -> Result<()> {
     let mut app = App::new();
+    let mut mouse_map = mouse::MouseMap::new();
+    let mut mouse_state = mouse::MouseState::new();
     let mut search_task: Option<JoinHandle<anyhow::Result<(Response, Response)>>> = None;
     let mut playlist_tracks_task: Option<JoinHandle<anyhow::Result<(String, Response)>>> = None;
     let mut podcast_search_task: Option<JoinHandle<anyhow::Result<Response>>> = None;
@@ -73,7 +76,8 @@ async fn run(
     let mut tick_counter: u8 = 0;
 
     loop {
-        terminal.draw(|frame| ui::render(frame, &app))?;
+        mouse_map.clear();
+        terminal.draw(|frame| ui::render(frame, &app, &mut mouse_map))?;
 
         if search_task
             .as_ref()
@@ -283,8 +287,13 @@ async fn run(
         // Poll for events with timeout for status ticks
         let timeout = Duration::from_millis(50);
         if event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                handle_key(&mut app, daemon, key).await?;
+            match event::read()? {
+                Event::Key(key) => handle_key(&mut app, daemon, key).await?,
+                Event::Mouse(mouse_event) => {
+                    mouse::handle_mouse(&mut app, daemon, &mouse_map, &mut mouse_state, mouse_event)
+                        .await?
+                }
+                _ => {}
             }
         }
 
@@ -440,42 +449,12 @@ async fn handle_key(
         }
 
         // Tab navigation
-        KeyCode::Tab => {
-            app.view = app.view.next();
-            if app.view == View::Playlists {
-                app.playlist_expanded = false;
-                app.playlist_track_focus = false;
-                refresh_selected_playlist(app, daemon).await;
-            }
-            if app.view == View::Library {
-                refresh_library(app, daemon).await;
-            }
-        }
-        KeyCode::BackTab => {
-            app.view = app.view.prev();
-            if app.view == View::Playlists {
-                app.playlist_expanded = false;
-                app.playlist_track_focus = false;
-                refresh_selected_playlist(app, daemon).await;
-            }
-            if app.view == View::Library {
-                refresh_library(app, daemon).await;
-            }
-        }
-        KeyCode::Char('1') => app.view = View::Search,
-        KeyCode::Char('2') => {
-            app.view = View::Playlists;
-            app.playlist_expanded = false;
-            app.playlist_track_focus = false;
-            refresh_selected_playlist(app, daemon).await;
-        }
-        KeyCode::Char('3') => {
-            app.view = View::Library;
-            refresh_library(app, daemon).await;
-        }
-        KeyCode::Char('4') => {
-            app.view = View::Podcasts;
-        }
+        KeyCode::Tab => switch_view(app, daemon, app.view.next()).await,
+        KeyCode::BackTab => switch_view(app, daemon, app.view.prev()).await,
+        KeyCode::Char('1') => switch_view(app, daemon, View::Search).await,
+        KeyCode::Char('2') => switch_view(app, daemon, View::Playlists).await,
+        KeyCode::Char('3') => switch_view(app, daemon, View::Library).await,
+        KeyCode::Char('4') => switch_view(app, daemon, View::Podcasts).await,
 
         // Global playback controls
         KeyCode::Char(' ') => {
@@ -594,6 +573,19 @@ fn clamp_queue_selection(app: &mut App) {
         app.queue_selected = 0;
     } else {
         app.queue_selected = app.queue_selected.min(app.status.queue.len().saturating_sub(1));
+    }
+}
+
+/// Switch the active view, refreshing data for the views that need it.
+async fn switch_view(app: &mut App, daemon: &mut DaemonClient, view: View) {
+    app.view = view;
+    if view == View::Playlists {
+        app.playlist_expanded = false;
+        app.playlist_track_focus = false;
+        refresh_selected_playlist(app, daemon).await;
+    }
+    if view == View::Library {
+        refresh_library(app, daemon).await;
     }
 }
 

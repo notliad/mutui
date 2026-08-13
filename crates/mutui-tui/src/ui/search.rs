@@ -1,8 +1,9 @@
 use crate::app::{App, InputMode, SearchSection};
+use crate::mouse::{HitRegion, InputId, ListId, MouseMap};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-pub fn render(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -11,11 +12,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         ])
         .split(area);
 
-    render_input(frame, app, chunks[0]);
-    render_results(frame, app, chunks[1]);
+    render_input(frame, app, mouse_map, chunks[0]);
+    render_results(frame, app, mouse_map, chunks[1]);
 }
 
-fn render_input(frame: &mut Frame, app: &App, area: Rect) {
+fn render_input(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let input_style = if app.input_mode == InputMode::Search {
         Style::default().fg(Color::Cyan)
     } else {
@@ -73,6 +74,7 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect) {
         );
 
     frame.render_widget(input, area);
+    mouse_map.push(HitRegion::Input(InputId::Search, area));
 
     // Show cursor when in search mode
     if app.input_mode == InputMode::Search {
@@ -95,17 +97,17 @@ fn search_selection_range(app: &App) -> Option<(usize, usize)> {
     }
 }
 
-fn render_results(frame: &mut Frame, app: &App, area: Rect) {
+fn render_results(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
         .split(area);
 
-    render_track_results(frame, app, chunks[0]);
-    render_playlist_results(frame, app, chunks[1]);
+    render_track_results(frame, app, mouse_map, chunks[0]);
+    render_playlist_results(frame, app, mouse_map, chunks[1]);
 }
 
-fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
+fn render_track_results(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     if app.search_results.is_empty() {
         let help = if app.searching {
             "Searching tracks..."
@@ -180,9 +182,15 @@ fn render_track_results(frame: &mut Frame, app: &App, area: Rect) {
         })
         .highlight_symbol("▸ ");
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(
+        ListId::SearchTracks,
+        area,
+        state.offset(),
+        app.search_results.len(),
+    );
 }
 
-fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
+fn render_playlist_results(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap, area: Rect) {
     if app.search_playlist_results.is_empty() {
         let help = if app.searching {
             "Searching playlists..."
@@ -295,6 +303,7 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let is_active = app.search_section == SearchSection::Playlists;
+    let item_count = items.len();
     let mut state = ListState::default().with_selected(Some(selected_row));
     let list = List::new(items)
         .block(
@@ -319,4 +328,5 @@ fn render_playlist_results(frame: &mut Frame, app: &App, area: Rect) {
         })
         .highlight_symbol("▸ ");
     frame.render_stateful_widget(list, area, &mut state);
+    mouse_map.push_list(ListId::SearchPlaylists, area, state.offset(), item_count);
 }
