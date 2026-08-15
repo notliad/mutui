@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::future::pending;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use log::{error, info};
 use mutui_common::{PlayerState, Request, Response};
 use tokio::sync::Mutex;
-use zbus::{Connection, interface};
+use zbus::{interface, Connection};
 use zvariant::{OwnedObjectPath, Value};
 
 use crate::server::Daemon;
@@ -136,7 +135,10 @@ impl PlayerIface {
         let status = d.get_status();
 
         let mut meta = HashMap::new();
-        let track_id = format!("/org/mpris/MediaPlayer2/track/{}", status.queue_index.max(1));
+        let track_id = format!(
+            "/org/mpris/MediaPlayer2/track/{}",
+            status.queue_index.max(1)
+        );
         if let Ok(track_id_path) = OwnedObjectPath::try_from(track_id) {
             meta.insert("mpris:trackid".to_string(), Value::from(track_id_path));
         }
@@ -211,7 +213,7 @@ impl PlayerIface {
 
 pub async fn run(daemon: Arc<Mutex<Daemon>>) -> Result<()> {
     let root_iface = RootIface;
-    let player_iface = PlayerIface::new(daemon);
+    let player_iface = PlayerIface::new(Arc::clone(&daemon));
 
     let connection = Connection::session()
         .await
@@ -236,7 +238,27 @@ pub async fn run(daemon: Arc<Mutex<Daemon>>) -> Result<()> {
 
     info!("MPRIS controls available on {MPRIS_BUS_NAME}");
 
-    pending::<()>().await;
+    let mut status_changes = {
+        let daemon = daemon.lock().await;
+        daemon.subscribe_status_changes()
+    };
+    let player = connection
+        .object_server()
+        .interface::<_, PlayerIface>(MPRIS_OBJECT_PATH)
+        .await
+        .context("Failed to access MPRIS player interface")?;
+
+    while status_changes.changed().await.is_ok() {
+        let emitter = player.signal_emitter();
+        let interface = player.get().await;
+        interface.playback_status_changed(emitter).await?;
+        interface.metadata_changed(emitter).await?;
+        interface.volume_changed(emitter).await?;
+        interface.can_go_next_changed(emitter).await?;
+        interface.can_go_previous_changed(emitter).await?;
+        interface.can_play_changed(emitter).await?;
+    }
+
     Ok(())
 }
 
