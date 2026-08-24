@@ -223,7 +223,7 @@ fn file_to_track(path: &Path) -> Option<Track> {
             // lofty tries tags in priority order; take the first populated tag
             let tag = tagged_file.primary_tag().or_else(|| tagged_file.first_tag());
 
-            let (title, artist, album) = if let Some(tag) = tag {
+            let (title, artist, album, track_number) = if let Some(tag) = tag {
                 let title = tag
                     .title()
                     .filter(|s| !s.is_empty())
@@ -239,9 +239,9 @@ fn file_to_track(path: &Path) -> Option<Track> {
                     .filter(|s| !s.is_empty())
                     .map(|s| s.to_string())
                     .or(fallback_album);
-                (title, artist, album)
+                (title, artist, album, tag.track())
             } else {
-                (fallback_title, fallback_artist, fallback_album)
+                (fallback_title, fallback_artist, fallback_album, None)
             };
 
             Some(Track {
@@ -249,6 +249,7 @@ fn file_to_track(path: &Path) -> Option<Track> {
                 title,
                 artist,
                 album,
+                track_number,
                 duration,
                 url: path_str,
             })
@@ -261,6 +262,7 @@ fn file_to_track(path: &Path) -> Option<Track> {
                 title: fallback_title,
                 artist: fallback_artist,
                 album: fallback_album,
+                track_number: None,
                 duration: None,
                 url: path_str,
             })

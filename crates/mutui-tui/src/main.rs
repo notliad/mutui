@@ -1341,9 +1341,53 @@ fn library_current_groups(app: &App) -> Vec<(String, Vec<mutui_common::Track>)> 
                 let album = t.album.as_deref().unwrap_or("Unknown Album").to_string();
                 map.entry(album).or_default().push(t.clone());
             }
+            for tracks in map.values_mut() {
+                tracks.sort_by(compare_album_tracks);
+            }
             map.into_iter()
                 .filter(|(name, _)| filter.is_empty() || name.to_lowercase().contains(&filter))
                 .collect()
+        }
+    }
+}
+
+fn compare_album_tracks(a: &mutui_common::Track, b: &mutui_common::Track) -> std::cmp::Ordering {
+    a.track_number
+        .unwrap_or(u32::MAX)
+        .cmp(&b.track_number.unwrap_or(u32::MAX))
+        .then_with(|| a.title.cmp(&b.title))
+}
+
+#[cfg(test)]
+mod library_tests {
+    use super::*;
+
+    #[test]
+    fn album_tracks_sort_by_track_number() {
+        let mut tracks = [
+            track("Unknown", None),
+            track("Second", Some(2)),
+            track("First", Some(1)),
+            track("Another second", Some(2)),
+        ];
+
+        tracks.sort_by(compare_album_tracks);
+
+        assert_eq!(
+            tracks.map(|track| track.title),
+            ["First", "Another second", "Second", "Unknown"]
+        );
+    }
+
+    fn track(title: &str, track_number: Option<u32>) -> mutui_common::Track {
+        mutui_common::Track {
+            id: title.into(),
+            title: title.into(),
+            artist: String::new(),
+            album: None,
+            track_number,
+            duration: None,
+            url: String::new(),
         }
     }
 }
@@ -1641,6 +1685,7 @@ fn episode_to_track(ep: &mutui_common::PodcastEpisode) -> mutui_common::Track {
         title: ep.title.clone(),
         artist: String::new(),
         album: None,
+        track_number: None,
         duration: ep.duration,
         url: ep.url.clone(),
     }

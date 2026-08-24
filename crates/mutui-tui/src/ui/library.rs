@@ -45,6 +45,9 @@ fn grouped_by_album<'a>(tracks: &'a [Track], filter: &str) -> Vec<(String, Vec<&
         let album = t.album.as_deref().unwrap_or("Unknown Album").to_string();
         map.entry(album).or_default().push(t);
     }
+    for tracks in map.values_mut() {
+        tracks.sort_by(|a, b| crate::compare_album_tracks(a, b));
+    }
     let f = filter.to_lowercase();
     map.into_iter()
         .filter(|(name, _)| f.is_empty() || name.to_lowercase().contains(&f))
