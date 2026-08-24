@@ -1,12 +1,10 @@
 use anyhow::Result;
 use log::{debug, error, info};
-use mutui_common::{
-    encode_message, DaemonStatus, PlayerState, Request, Response, Track,
-};
+use mutui_common::{encode_message, DaemonStatus, PlayerState, Request, Response, Track};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::Mutex;
+use tokio::sync::{watch, Mutex};
 
 use crate::library;
 use crate::mpv::MpvHandle;
@@ -22,6 +20,7 @@ pub struct Daemon {
     pub autoplay_enabled: bool,
     pub autoplay_results: Vec<Track>,
     pub autoplay_next_index: usize,
+    status_revision: watch::Sender<u64>,
 }
 
 impl Daemon {
@@ -30,6 +29,8 @@ impl Daemon {
         let volume = 80;
         let _ = mpv.set_volume(volume);
 
+        let (status_revision, _) = watch::channel(0);
+
         Ok(Self {
             mpv,
             queue: Queue::new(),
@@ -37,7 +38,17 @@ impl Daemon {
             autoplay_enabled: false,
             autoplay_results: Vec::new(),
             autoplay_next_index: 0,
+            status_revision,
         })
+    }
+
+    pub fn subscribe_status_changes(&self) -> watch::Receiver<u64> {
+        self.status_revision.subscribe()
+    }
+
+    fn notify_status_changed(&self) {
+        self.status_revision
+            .send_modify(|revision| *revision = revision.wrapping_add(1));
     }
 
     fn store_search_results(&mut self, tracks: &[Track]) {
@@ -94,7 +105,8 @@ impl Daemon {
     }
 
     pub fn handle_request(&mut self, req: Request) -> Response {
-        match req {
+        let changes_mpris = request_changes_mpris(&req);
+        let response = match req {
             Request::Play => {
                 if self.queue.current_track().is_some() {
                     if let Err(e) = self.mpv.play() {
@@ -275,8 +287,34 @@ impl Daemon {
                 Response::Status(Box::new(status))
             }
             Request::Shutdown => Response::Ok,
+        };
+
+        if changes_mpris && !matches!(response, Response::Error(_)) {
+            self.notify_status_changed();
         }
+
+        response
     }
+}
+
+fn request_changes_mpris(req: &Request) -> bool {
+    matches!(
+        req,
+        Request::Play
+            | Request::Pause
+            | Request::Toggle
+            | Request::Stop
+            | Request::Next
+            | Request::Previous
+            | Request::SetVolume(_)
+            | Request::AddToQueue(_)
+            | Request::InsertNext(_)
+            | Request::RemoveFromQueue(_)
+            | Request::ClearQueue
+            | Request::MoveInQueue { .. }
+            | Request::PlayIndex(_)
+            | Request::LoadPlaylist(_)
+    )
 }
 
 /// Check if the mpv playback has ended and auto-advance to the next track.
@@ -290,11 +328,13 @@ pub async fn check_track_ended(daemon: &Arc<Mutex<Daemon>>) {
     if idle && d.queue.current_track().is_some() {
         if d.queue.next() {
             let _ = d.play_current();
+            d.notify_status_changed();
             return;
         }
 
         if d.append_next_autoplay_track() && d.queue.next() {
             let _ = d.play_current();
+            d.notify_status_changed();
         }
     }
 }
@@ -383,6 +423,7 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                         if !d.queue.is_empty() {
                             let _ = d.play_current();
                         }
+                        d.notify_status_changed();
                         Response::Ok
                     }
                     Err(e) => Response::Error(e.to_string()),
@@ -402,6 +443,7 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                             if was_empty {
                                 let _ = d.play_current();
                             }
+                            d.notify_status_changed();
                             Response::Ok
                         }
                     }
@@ -449,6 +491,7 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                     if !d.queue.is_empty() {
                         let _ = d.play_current();
                     }
+                    d.notify_status_changed();
                     Response::Ok
                 }
                 Err(e) => Response::Error(e.to_string()),
@@ -466,9 +509,7 @@ async fn handle_client(stream: UnixStream, daemon: Arc<Mutex<Daemon>>) {
                 Ok(followed) => Response::PodcastChannels(followed),
                 Err(e) => Response::Error(e.to_string()),
             },
-            Request::ListFollowedPodcasts => {
-                Response::PodcastChannels(podcasts::load_followed())
-            }
+            Request::ListFollowedPodcasts => Response::PodcastChannels(podcasts::load_followed()),
             Request::GetPodcastEpisodes(feed_url) => {
                 match podcasts::fetch_episodes(&feed_url).await {
                     Ok(episodes) => Response::PodcastEpisodes(episodes),
@@ -527,5 +568,17 @@ pub async fn run(daemon: Arc<Mutex<Daemon>>) -> Result<()> {
                 error!("Accept error: {e}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::request_changes_mpris;
+    use mutui_common::Request;
+
+    #[test]
+    fn only_state_changes_notify_mpris() {
+        assert!(request_changes_mpris(&Request::Toggle));
+        assert!(!request_changes_mpris(&Request::GetStatus));
     }
 }
