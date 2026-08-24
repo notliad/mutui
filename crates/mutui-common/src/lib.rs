@@ -10,6 +10,8 @@ pub struct Track {
     pub artist: String,
     #[serde(default)]
     pub album: Option<String>,
+    #[serde(default)]
+    pub track_number: Option<u32>,
     pub duration: Option<f64>,
     pub url: String,
 }
