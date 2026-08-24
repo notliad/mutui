@@ -41,6 +41,7 @@ impl YtDlpEntry {
             title,
             artist,
             album: None,
+            track_number: None,
             duration: self.duration,
             url,
         })
@@ -81,6 +82,7 @@ impl YtDlpEntry {
                 Some(count) => format!("youtube-playlist:{count}"),
                 None => "youtube-playlist".to_string(),
             }),
+            track_number: None,
             duration: None,
             url,
         })
