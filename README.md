@@ -14,13 +14,14 @@
 </div>
 `mutui` is a lightweight terminal based music player for Linux.
 
-Features:
+## Features:
 
 - Search tracks and playlists on Youtube;
 - Local music library folders (filter by artists, albums and tracks);
 - Local queue and playlists;
 - Background playback;
 - Vim like navigation;
+- Mouse support;
 
 ## Quick Install
 
