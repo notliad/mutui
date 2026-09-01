@@ -79,6 +79,10 @@ pub fn render(frame: &mut Frame, app: &App, mouse_map: &mut MouseMap) {
         render_delete_playlist_confirm_popup(frame, app, mouse_map);
     }
 
+    if app.clear_queue_confirm {
+        render_clear_queue_confirm_popup(frame, app, mouse_map);
+    }
+
     if app.library_delete_confirm_selected.is_some() {
         render_delete_library_folder_select_popup(frame, app, mouse_map);
     }
@@ -197,6 +201,7 @@ fn render_shortcuts_page(frame: &mut Frame, title: &str) {
         Row::new(vec!["J / K", "Select queue item"]),
         Row::new(vec!["T", "Play selected queue item"]),
         Row::new(vec!["D", "Remove selected queue item"]),
+        Row::new(vec!["E", "Erase all queue songs"]),
         Row::new(vec!["H / L", "Move selected queue item"]),
         Row::new(vec!["", ""]),
         Row::new(vec!["/", "Focus search input"]),
@@ -309,6 +314,48 @@ fn render_delete_playlist_confirm_popup(frame: &mut Frame, app: &App, mouse_map:
         .split(inner);
 
     let text = Paragraph::new(Line::from(format!("Delete playlist '{name}'?")))
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+
+    frame.render_widget(text, rows[1]);
+
+    render_button_row(
+        frame,
+        mouse_map,
+        rows[2],
+        &[
+            (ButtonAction::Confirm, "[Y] Confirm"),
+            (ButtonAction::Cancel, "[N] Cancel"),
+        ],
+    );
+}
+
+fn render_clear_queue_confirm_popup(frame: &mut Frame, _app: &App, mouse_map: &mut MouseMap) {
+    let area = centered_rect(50, 7, frame.area());
+    frame.render_widget(Clear, area);
+    mouse_map.push(HitRegion::Popup(area));
+
+    let block = Block::default()
+        .title(" Clear Queue ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Fill(1),
+            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .split(inner);
+
+    let text = Paragraph::new(Line::from("Erase all songs from the queue?"))
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });

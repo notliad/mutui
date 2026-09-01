@@ -387,6 +387,23 @@ async fn handle_key(
         return Ok(());
     }
 
+    if app.clear_queue_confirm {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                app.clear_queue_confirm = false;
+                let _ = daemon.send(&Request::ClearQueue).await;
+                app.queue_selected = 0;
+                app.notify("Queue cleared");
+            }
+            KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
+                app.clear_queue_confirm = false;
+                app.notify("Clear queue canceled");
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     if app.show_shortcuts_popup {
         match key.code {
             KeyCode::Char('?') | KeyCode::Esc => {
@@ -531,10 +548,12 @@ async fn handle_key(
                 app.notify("Playing selected queue track");
             }
         }
-        KeyCode::Char('R') if !matches!(app.view, View::Library) => {
-            let _ = daemon.send(&Request::ClearQueue).await;
-            app.queue_selected = 0;
-            app.notify("Queue cleared");
+        KeyCode::Char('E') if !matches!(app.view, View::Library) => {
+            if !app.status.queue.is_empty() {
+                app.clear_queue_confirm = true;
+            } else {
+                app.notify("Queue is empty");
+            }
         }
         KeyCode::Char('+') | KeyCode::Char('=') => {
             let vol = (app.status.volume + 5).min(150);
