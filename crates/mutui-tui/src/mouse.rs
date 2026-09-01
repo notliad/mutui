@@ -194,6 +194,7 @@ pub async fn handle_mouse(
 enum PopupKind {
     DeletePlaylist,
     DeleteFolder,
+    ClearQueueConfirm,
     Shortcuts,
     PlaylistName,
     FolderPath,
@@ -202,6 +203,9 @@ enum PopupKind {
 fn current_popup(app: &App) -> Option<PopupKind> {
     if app.playlist_delete_confirm_name.is_some() {
         return Some(PopupKind::DeletePlaylist);
+    }
+    if app.clear_queue_confirm {
+        return Some(PopupKind::ClearQueueConfirm);
     }
     if app.library_delete_confirm_selected.is_some() {
         return Some(PopupKind::DeleteFolder);
@@ -220,6 +224,7 @@ fn current_popup(app: &App) -> Option<PopupKind> {
 
 fn dismiss_popup(app: &mut App) {
     app.playlist_delete_confirm_name = None;
+    app.clear_queue_confirm = false;
     app.library_delete_confirm_selected = None;
     app.show_shortcuts_popup = false;
     app.help_popup_page = HelpPopupPage::Shortcuts;
@@ -261,7 +266,7 @@ async fn click(
                 }
                 return Ok(());
             }
-            PopupKind::DeletePlaylist | PopupKind::DeleteFolder => {}
+            PopupKind::DeletePlaylist | PopupKind::DeleteFolder | PopupKind::ClearQueueConfirm => {}
         }
     }
 
@@ -318,7 +323,16 @@ async fn button_action(
         ButtonAction::Quit => {
             app.should_quit = true;
         }
-        ButtonAction::Confirm => confirm_delete_playlist(app, daemon).await?,
+        ButtonAction::Confirm => {
+            if app.clear_queue_confirm {
+                app.clear_queue_confirm = false;
+                let _ = daemon.send(&Request::ClearQueue).await;
+                app.queue_selected = 0;
+                app.notify("Queue cleared");
+            } else {
+                confirm_delete_playlist(app, daemon).await?;
+            }
+        }
         ButtonAction::RemoveFolder => {
             if let Some(index) = app.library_delete_confirm_selected {
                 remove_folder(app, daemon, index).await?;
